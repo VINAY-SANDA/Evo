@@ -27,6 +27,12 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// Render terminates TLS and forwards requests through one trusted proxy hop.
+// This lets rate limiters read the forwarded client IP without trusting headers locally.
+if (process.env.RENDER === 'true') {
+  app.set('trust proxy', 1);
+}
+
 // ── Middleware ──
 const allowedOrigins = process.env.CORS_ORIGIN
   ? process.env.CORS_ORIGIN.split(',').map(s => s.trim())

@@ -7,9 +7,14 @@ const { requireBearerAuth } = require('@modelcontextprotocol/sdk/server/auth/mid
 
 process.env.EVO_AUTH_SECRET = 'test-only-evo-oauth-secret';
 process.env.EVO_MASTER_PASSCODE = 'test-only-owner-passcode';
+process.env.EVO_MCP_PUBLIC_URL = '';
+process.env.RENDER_EXTERNAL_URL = '';
+process.env.EVO_MCP_TOKEN = 'test-only-evo-mcp-token';
 
 const { createEvoMcpOAuthRouter } = require('../dist/routes/mcpOAuth.js');
 const { EVO_MCP_SCOPE, EvoMcpOAuthProvider } = require('../dist/services/mcpOAuth.js');
+const { authenticateRequest } = require('../dist/middleware/auth.js');
+const mcpRouter = require('../dist/routes/mcp.js').default;
 
 class MemoryOAuthStore {
   clients = new Map();
@@ -52,6 +57,8 @@ test('Gemini-compatible MCP OAuth discovers, registers, authorizes, and issues a
   const resource = new URL('/mcp', origin);
   const provider = new EvoMcpOAuthProvider(new MemoryOAuthStore(), new URL(origin), resource);
   app.use(createEvoMcpOAuthRouter(provider, resource, new URL(origin)));
+  app.use('/mcp', authenticateRequest);
+  app.use('/mcp', mcpRouter);
   app.get('/mcp/probe', requireBearerAuth({
     verifier: provider,
     requiredScopes: [EVO_MCP_SCOPE],
@@ -168,6 +175,41 @@ test('Gemini-compatible MCP OAuth discovers, registers, authorizes, and issues a
       clientId: client.client_id,
       scopes: [EVO_MCP_SCOPE, 'offline_access'],
     });
+
+    const initializeResponse = await fetch(`${origin}/mcp`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${tokens.access_token}`,
+        Accept: 'application/json, text/event-stream',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'initialize',
+        params: {
+          protocolVersion: '2024-11-05',
+          capabilities: {},
+          clientInfo: { name: 'gemini-oauth-regression-test', version: '1.0.0' },
+        },
+      }),
+    });
+    assert.equal(initializeResponse.status, 200);
+    assert.equal((await initializeResponse.json()).result.protocolVersion, '2024-11-05');
+
+    const listToolsResponse = await fetch(`${origin}/mcp`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${tokens.access_token}`,
+        Accept: 'application/json, text/event-stream',
+        'Content-Type': 'application/json',
+        'MCP-Protocol-Version': '2024-11-05',
+      },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} }),
+    });
+    assert.equal(listToolsResponse.status, 200);
+    const availableTools = (await listToolsResponse.json()).result.tools;
+    assert.ok(availableTools.some(tool => tool.name === 'evo_create_habit'));
 
     const refreshResponse = await fetch(`${origin}/token`, {
       method: 'POST',
