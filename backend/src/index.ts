@@ -15,6 +15,7 @@ import notificationsRouter from './routes/notifications.js';
 import progressRouter from './routes/progress.js';
 import reviewsRouter from './routes/reviews.js';
 import mcpRouter from './routes/mcp.js';
+import authRouter from './routes/auth.js';
 import { testConnection, query } from './db/connection.js';
 import { DEFAULT_USER_ID, ensureDefaultUser } from './db/userHelper.js';
 
@@ -81,7 +82,8 @@ app.get('/api/health', (_req: Request, res: Response) => {
   });
 });
 
-// ── Mount All Routes ──
+// ── Route Mounts ──
+app.use('/api/auth', authRouter);
 app.use('/api/goals', goalsRouter);
 app.use('/api/tasks', tasksRouter);
 app.use('/api/habits', habitsRouter);

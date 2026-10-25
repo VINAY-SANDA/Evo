@@ -1,4 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider } from './context/AuthContext';
+import { ProtectedRoute } from './components/auth/ProtectedRoute';
+import LoginPage from './pages/Auth/LoginPage';
 import AppLayout from './components/layout/AppLayout';
 import HomePage from './pages/Home/HomePage';
 import GoalsPage from './pages/Goals/GoalsPage';
@@ -17,24 +20,36 @@ import SettingsPage from './pages/Settings/SettingsPage';
 export default function App() {
   return (
     <BrowserRouter>
-      <Routes>
-        <Route element={<AppLayout />}>
-          <Route path="/" element={<HomePage />} />
-          <Route path="/goals" element={<GoalsPage />} />
-          <Route path="/tasks" element={<TasksPage />} />
-          <Route path="/habits" element={<HabitsPage />} />
-          <Route path="/finance" element={<FinancePage />} />
-          <Route path="/learning" element={<LearningPage />} />
-          <Route path="/projects" element={<ProjectsPage />} />
-          <Route path="/progress" element={<ProgressPage />} />
-          <Route path="/reminders" element={<RemindersPage />} />
-          <Route path="/reviews" element={<ReviewsPage />} />
-          <Route path="/ai" element={<AiChatPage />} />
-          <Route path="/notifications" element={<NotificationsPage />} />
-          <Route path="/settings" element={<SettingsPage />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Route>
-      </Routes>
+      <AuthProvider>
+        <Routes>
+          {/* Public Authentication Route */}
+          <Route path="/login" element={<LoginPage />} />
+
+          {/* Protected Routes for Vinay only */}
+          <Route
+            element={
+              <ProtectedRoute>
+                <AppLayout />
+              </ProtectedRoute>
+            }
+          >
+            <Route path="/" element={<HomePage />} />
+            <Route path="/goals" element={<GoalsPage />} />
+            <Route path="/tasks" element={<TasksPage />} />
+            <Route path="/habits" element={<HabitsPage />} />
+            <Route path="/finance" element={<FinancePage />} />
+            <Route path="/learning" element={<LearningPage />} />
+            <Route path="/projects" element={<ProjectsPage />} />
+            <Route path="/progress" element={<ProgressPage />} />
+            <Route path="/reminders" element={<RemindersPage />} />
+            <Route path="/reviews" element={<ReviewsPage />} />
+            <Route path="/ai" element={<AiChatPage />} />
+            <Route path="/notifications" element={<NotificationsPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Route>
+        </Routes>
+      </AuthProvider>
     </BrowserRouter>
   );
 }

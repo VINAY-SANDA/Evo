@@ -34,12 +34,16 @@ async function apiRequest<T>(endpoint: string, options: RequestInit = {}): Promi
     return null;
   }
 
+  const token = typeof window !== 'undefined' ? localStorage.getItem('evo_auth_token') : null;
+  const authHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+
   const url = `${API_BASE_URL}${endpoint}`;
   try {
     const res = await fetch(url, {
       ...options,
       headers: {
         'Content-Type': 'application/json',
+        ...authHeaders,
         ...(options.headers || {}),
       },
     });

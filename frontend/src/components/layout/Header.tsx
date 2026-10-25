@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
 import { getNotifications } from '../../services/api';
 
 interface HeaderProps {
@@ -35,6 +36,7 @@ function getPageTitle(pathname: string): string {
 export default function Header({ onToggleSidebar }: HeaderProps) {
   const navigate = useNavigate();
   const location = useLocation();
+  const { logout } = useAuth();
   const [unreadCount, setUnreadCount] = useState<number>(0);
   const pageTitle = getPageTitle(location.pathname);
 
@@ -82,6 +84,18 @@ export default function Header({ onToggleSidebar }: HeaderProps) {
           aria-label="AI Assistant"
         >
           ✨
+        </button>
+
+        <button
+          className="header-icon-btn header-lock-btn"
+          onClick={() => {
+            logout();
+            navigate('/login');
+          }}
+          title="Lock EVO (Owner Logout)"
+          aria-label="Lock OS"
+        >
+          🔒
         </button>
       </div>
     </header>
