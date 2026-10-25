@@ -99,18 +99,36 @@ router.post('/', async (req: Request, res: Response) => {
 router.patch('/:id', async (req: Request, res: Response) => {
   try {
     const id = String(req.params.id);
-    const { title, description, category, currentValue, status, priority, progress } = req.body;
+    const { title, description, category, currentValue, targetValue, unit, deadline, status, priority, progress } = req.body;
+
+    // Check if goal exists first
+    const existingRes = await query('SELECT * FROM goals WHERE id = $1 AND user_id = $2', [id, DEFAULT_USER_ID]);
+    if (existingRes.rows.length === 0) return res.status(404).json({ error: 'Goal not found' });
+    const existing = existingRes.rows[0];
+
+    const finalTargetValue = targetValue !== undefined ? Number(targetValue) : Number(existing.target_value) || 100;
+    let finalCurrentValue: number | null = null;
+
+    if (progress !== undefined && !isNaN(Number(progress))) {
+      const cleanProgress = Math.min(100, Math.max(0, Number(progress)));
+      finalCurrentValue = (cleanProgress / 100) * finalTargetValue;
+    } else if (currentValue !== undefined && !isNaN(Number(currentValue))) {
+      finalCurrentValue = Number(currentValue);
+    }
 
     const sql = `
       UPDATE goals
       SET title = COALESCE($1, title),
           description = COALESCE($2, description),
           category = COALESCE($3, category),
-          current_value = COALESCE($4, current_value),
-          status = COALESCE($5, status),
-          priority = COALESCE($6, priority),
+          target_value = COALESCE($4, target_value),
+          current_value = COALESCE($5, current_value),
+          unit = COALESCE($6, unit),
+          deadline = COALESCE($7::date, deadline),
+          status = COALESCE($8, status),
+          priority = COALESCE($9, priority),
           updated_at = CURRENT_TIMESTAMP
-      WHERE id = $7 AND user_id = $8
+      WHERE id = $10 AND user_id = $11
       RETURNING id, user_id as "userId", title, description, category,
                 target_value::float as "targetValue", current_value::float as "currentValue",
                 unit, to_char(deadline, 'YYYY-MM-DD') as "deadline",
@@ -118,10 +136,13 @@ router.patch('/:id', async (req: Request, res: Response) => {
                 created_at as "createdAt", updated_at as "updatedAt"
     `;
     const params = [
-      title || null,
-      description || null,
+      title !== undefined ? String(title).trim() : null,
+      description !== undefined ? String(description).trim() : null,
       category || null,
-      currentValue !== undefined ? Number(currentValue) : null,
+      targetValue !== undefined ? finalTargetValue : null,
+      finalCurrentValue !== null ? finalCurrentValue : null,
+      unit || null,
+      deadline || null,
       status || null,
       priority || null,
       id,
@@ -129,7 +150,6 @@ router.patch('/:id', async (req: Request, res: Response) => {
     ];
 
     const result = await query(sql, params);
-    if (result.rows.length === 0) return res.status(404).json({ error: 'Goal not found' });
     res.json(result.rows[0]);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -189,6 +209,38 @@ router.delete('/:id', async (req: Request, res: Response) => {
     const id = String(req.params.id);
     const result = await query('DELETE FROM goals WHERE id = $1 AND user_id = $2 RETURNING id', [id, DEFAULT_USER_ID]);
     if (result.rows.length === 0) return res.status(404).json({ error: 'Goal not found' });
+    res.status(204).send();
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PATCH /api/goals/milestones/:mId/toggle
+router.patch('/milestones/:mId/toggle', async (req: Request, res: Response) => {
+  try {
+    const mId = String(req.params.mId);
+    const sql = `
+      UPDATE goal_milestones
+      SET status = CASE WHEN status = 'completed' THEN 'pending' ELSE 'completed' END,
+          completed_at = CASE WHEN status = 'completed' THEN NULL ELSE CURRENT_TIMESTAMP END
+      WHERE id = $1
+      RETURNING id, goal_id as "goalId", title, status, to_char(due_date, 'YYYY-MM-DD') as "dueDate",
+                completed_at as "completedAt", created_at as "createdAt"
+    `;
+    const result = await query(sql, [mId]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Milestone not found' });
+    res.json(result.rows[0]);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/goals/milestones/:mId
+router.delete('/milestones/:mId', async (req: Request, res: Response) => {
+  try {
+    const mId = String(req.params.mId);
+    const result = await query('DELETE FROM goal_milestones WHERE id = $1 RETURNING id', [mId]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Milestone not found' });
     res.status(204).send();
   } catch (err: any) {
     res.status(500).json({ error: err.message });

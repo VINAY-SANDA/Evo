@@ -126,6 +126,101 @@
   font-family: var(--font-mono);
 }
 
+.goal-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.goal-action-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--evo-border);
+  background: var(--evo-bg-elevated);
+  color: var(--evo-text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 13px;
+  transition: all var(--duration-fast) var(--ease-out);
+}
+
+.goal-action-btn:hover {
+  background: var(--evo-bg-hover);
+  color: var(--evo-text-primary);
+  border-color: var(--evo-border-strong);
+}
+
+.goal-action-btn.edit:hover {
+  color: var(--evo-primary);
+  border-color: rgba(41, 151, 255, 0.4);
+  background: rgba(41, 151, 255, 0.1);
+}
+
+.goal-action-btn.delete:hover {
+  color: var(--evo-danger);
+  border-color: rgba(255, 69, 58, 0.4);
+  background: rgba(255, 69, 58, 0.1);
+}
+
+/* ── Interactive Progress Controls ── */
+.goal-progress-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.goal-progress-slider {
+  flex: 1;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 5px;
+  border-radius: var(--radius-full);
+  background: var(--evo-bg-overlay);
+  outline: none;
+  cursor: pointer;
+  transition: background var(--duration-fast);
+}
+
+.goal-progress-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--evo-primary);
+  cursor: pointer;
+  box-shadow: 0 0 6px var(--evo-primary-glow);
+  transition: transform 0.1s ease;
+}
+
+.goal-progress-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+
+.goal-stepper-btn {
+  padding: 2px 7px;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--evo-border);
+  background: var(--evo-bg-elevated);
+  color: var(--evo-text-secondary);
+  cursor: pointer;
+  transition: all var(--duration-fast);
+}
+
+.goal-stepper-btn:hover {
+  background: rgba(41, 151, 255, 0.12);
+  color: var(--evo-primary);
+  border-color: rgba(41, 151, 255, 0.3);
+}
+
 @media (max-width: 800px) {
   .goals-grid {
     grid-template-columns: 1fr;

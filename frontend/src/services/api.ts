@@ -1,5 +1,6 @@
 import type {
   Goal,
+  Milestone,
   Task,
   Habit,
   Expense,
@@ -116,6 +117,53 @@ export async function createGoal(goal: Partial<Goal>): Promise<Goal | null> {
   return await apiRequest<Goal>('/api/goals', {
     method: 'POST',
     body: JSON.stringify(goal),
+  });
+}
+
+export async function updateGoal(id: string, goal: Partial<Goal>): Promise<Goal | null> {
+  return await apiRequest<Goal>(`/api/goals/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(goal),
+  });
+}
+
+export async function updateGoalProgress(id: string, progress: number): Promise<Goal | null> {
+  return await apiRequest<Goal>(`/api/goals/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ progress }),
+  });
+}
+
+export async function deleteGoal(id: string): Promise<boolean> {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('evo_auth_token') : null;
+  const authHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+  if (!API_BASE_URL) return true;
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/goals/${id}`, {
+      method: 'DELETE',
+      headers: { ...authHeaders },
+    });
+    return res.status === 204 || res.ok;
+  } catch {
+    return false;
+  }
+}
+
+export async function getGoalMilestones(goalId: string): Promise<Milestone[]> {
+  const remote = await apiRequest<{ milestones: Milestone[] }>(`/api/goals/${goalId}/milestones`);
+  return remote?.milestones || [];
+}
+
+export async function createGoalMilestone(goalId: string, milestone: Partial<Milestone>): Promise<Milestone | null> {
+  return await apiRequest<Milestone>(`/api/goals/${goalId}/milestones`, {
+    method: 'POST',
+    body: JSON.stringify(milestone),
+  });
+}
+
+export async function toggleGoalMilestone(milestoneId: string): Promise<Milestone | null> {
+  return await apiRequest<Milestone>(`/api/goals/milestones/${milestoneId}/toggle`, {
+    method: 'PATCH',
   });
 }
 

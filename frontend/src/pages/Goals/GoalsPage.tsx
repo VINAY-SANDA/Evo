@@ -1,6 +1,12 @@
 import { useState, useEffect } from 'react';
 import type { Goal, GoalCategory, Milestone } from '../../types';
-import { getGoals, createGoal } from '../../services/api';
+import {
+  getGoals,
+  createGoal,
+  updateGoal,
+  updateGoalProgress,
+  deleteGoal,
+} from '../../services/api';
 import './GoalsPage.css';
 
 const categoryIcons: Record<GoalCategory, string> = {
@@ -20,7 +26,7 @@ export default function GoalsPage() {
   const [showModal, setShowModal] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // Form State
+  // Form State for New Goal
   const [formData, setFormData] = useState<{
     title: string;
     description: string;
@@ -37,6 +43,28 @@ export default function GoalsPage() {
     unit: '%',
     deadline: new Date(Date.now() + 90 * 86400000).toISOString().split('T')[0],
     priority: 'high',
+  });
+
+  // State for Editing Goal
+  const [editingGoal, setEditingGoal] = useState<Goal | null>(null);
+  const [editFormData, setEditFormData] = useState<{
+    title: string;
+    description: string;
+    category: GoalCategory;
+    targetValue: number;
+    unit: string;
+    deadline: string;
+    priority: 'low' | 'medium' | 'high' | 'urgent';
+    progress: number;
+  }>({
+    title: '',
+    description: '',
+    category: 'career',
+    targetValue: 100,
+    unit: '%',
+    deadline: '',
+    priority: 'high',
+    progress: 0,
   });
 
   useEffect(() => {
@@ -82,6 +110,77 @@ export default function GoalsPage() {
     }
   };
 
+  const openEditModal = (goal: Goal) => {
+    setEditingGoal(goal);
+    setEditFormData({
+      title: goal.title,
+      description: goal.description || '',
+      category: goal.category,
+      targetValue: goal.targetValue || 100,
+      unit: goal.unit || '%',
+      deadline: goal.deadline,
+      priority: goal.priority as any,
+      progress: goal.progress,
+    });
+  };
+
+  const handleUpdateGoal = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingGoal || !editFormData.title.trim()) return;
+
+    // Optimistic UI update
+    setGoals(prev => prev.map(g => g.id === editingGoal.id ? {
+      ...g,
+      title: editFormData.title.trim(),
+      description: editFormData.description.trim(),
+      category: editFormData.category,
+      targetValue: Number(editFormData.targetValue) || 100,
+      unit: editFormData.unit.trim() || '%',
+      deadline: editFormData.deadline,
+      priority: editFormData.priority,
+      progress: Number(editFormData.progress) || 0,
+    } : g));
+
+    showToast(`✓ Goal "${editFormData.title}" updated`);
+    const goalId = editingGoal.id;
+    setEditingGoal(null);
+
+    const updated = await updateGoal(goalId, {
+      title: editFormData.title.trim(),
+      description: editFormData.description.trim(),
+      category: editFormData.category,
+      targetValue: Number(editFormData.targetValue) || 100,
+      unit: editFormData.unit.trim() || '%',
+      deadline: editFormData.deadline,
+      priority: editFormData.priority,
+      progress: Number(editFormData.progress) || 0,
+    });
+
+    if (updated) {
+      setGoals(prev => prev.map(g => g.id === goalId ? updated : g));
+    }
+  };
+
+  const handleDeleteGoal = async (id: string, title: string) => {
+    if (!window.confirm(`Are you sure you want to remove the goal "${title}"?`)) return;
+
+    const prevGoals = [...goals];
+    setGoals(prev => prev.filter(g => g.id !== id));
+    showToast(`Goal "${title}" removed`);
+
+    const ok = await deleteGoal(id);
+    if (!ok) {
+      setGoals(prevGoals);
+      showToast('❌ Failed to delete goal on server');
+    }
+  };
+
+  const handleQuickProgress = async (goalId: string, newProgress: number) => {
+    const clamped = Math.max(0, Math.min(100, Math.round(newProgress)));
+    setGoals(prev => prev.map(g => g.id === goalId ? { ...g, progress: clamped } : g));
+    await updateGoalProgress(goalId, clamped);
+  };
+
   const toggleMilestone = (milestoneId: string, goalId: string) => {
     setMilestones(prev => {
       const updated = prev.map(m => m.id === milestoneId ? {
@@ -95,6 +194,7 @@ export default function GoalsPage() {
         const completedCount = goalMilestones.filter(m => m.status === 'completed').length;
         const newProgress = Math.round((completedCount / goalMilestones.length) * 100);
         setGoals(gList => gList.map(g => g.id === goalId ? { ...g, progress: newProgress } : g));
+        updateGoalProgress(goalId, newProgress);
       }
 
       return updated;
@@ -161,6 +261,24 @@ export default function GoalsPage() {
                   </span>
                   <span className="badge badge-primary">{goal.category}</span>
                 </div>
+                <div className="goal-card-actions">
+                  <button
+                    type="button"
+                    className="goal-action-btn edit"
+                    title="Edit Goal & Progress"
+                    onClick={() => openEditModal(goal)}
+                  >
+                    ✎
+                  </button>
+                  <button
+                    type="button"
+                    className="goal-action-btn delete"
+                    title="Delete Goal"
+                    onClick={() => handleDeleteGoal(goal.id, goal.title)}
+                  >
+                    ✕
+                  </button>
+                </div>
               </div>
 
               <h3 className="goal-card-title">{goal.title}</h3>
@@ -181,6 +299,37 @@ export default function GoalsPage() {
                       background: categoryColors[goal.category] || 'var(--evo-primary)',
                     }}
                   />
+                </div>
+
+                {/* Quick Progress Adjuster */}
+                <div className="goal-progress-controls">
+                  <button
+                    type="button"
+                    className="goal-stepper-btn"
+                    title="Decrease progress by 10%"
+                    onClick={() => handleQuickProgress(goal.id, goal.progress - 10)}
+                    disabled={goal.progress <= 0}
+                  >
+                    -10%
+                  </button>
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={goal.progress}
+                    onChange={(e) => handleQuickProgress(goal.id, Number(e.target.value))}
+                    className="goal-progress-slider"
+                    title={`Adjust progress (currently ${goal.progress}%)`}
+                  />
+                  <button
+                    type="button"
+                    className="goal-stepper-btn"
+                    title="Increase progress by 10%"
+                    onClick={() => handleQuickProgress(goal.id, goal.progress + 10)}
+                    disabled={goal.progress >= 100}
+                  >
+                    +10%
+                  </button>
                 </div>
               </div>
 
@@ -320,6 +469,123 @@ export default function GoalsPage() {
               <div className="modal-footer">
                 <button type="button" className="btn btn-secondary" onClick={() => setShowModal(false)}>Cancel</button>
                 <button type="submit" className="btn btn-primary">Create Goal</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Goal Modal */}
+      {editingGoal && (
+        <div className="modal-overlay" onClick={() => setEditingGoal(null)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2 className="modal-title">Edit Goal: {editingGoal.title}</h2>
+              <button className="modal-close" onClick={() => setEditingGoal(null)}>✕</button>
+            </div>
+            <form onSubmit={handleUpdateGoal}>
+              <div className="modal-body">
+                <div className="auth-form">
+                  <div className="form-group">
+                    <label className="form-label">Goal Title *</label>
+                    <input
+                      className="form-input"
+                      value={editFormData.title}
+                      onChange={e => setEditFormData({ ...editFormData, title: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Description</label>
+                    <textarea
+                      className="form-input"
+                      rows={3}
+                      value={editFormData.description}
+                      onChange={e => setEditFormData({ ...editFormData, description: e.target.value })}
+                    />
+                  </div>
+
+                  {/* Direct Progress Slider in Modal */}
+                  <div className="form-group">
+                    <div className="flex items-center justify-between">
+                      <label className="form-label">Current Progress ({editFormData.progress}%)</label>
+                      <span style={{ fontSize: 'var(--text-xs)', color: 'var(--evo-primary)', fontFamily: 'var(--font-mono)' }}>
+                        {editFormData.progress}% Completed
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      value={editFormData.progress}
+                      onChange={e => setEditFormData({ ...editFormData, progress: Number(e.target.value) })}
+                      className="goal-progress-slider"
+                      style={{ width: '100%', marginTop: '6px' }}
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">Category</label>
+                    <select
+                      className="form-input"
+                      value={editFormData.category}
+                      onChange={e => setEditFormData({ ...editFormData, category: e.target.value as GoalCategory })}
+                    >
+                      {Object.entries(categoryIcons).map(([key, icon]) => (
+                        <option key={key} value={key}>
+                          {icon} {key.charAt(0).toUpperCase() + key.slice(1)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-4)' }}>
+                    <div className="form-group">
+                      <label className="form-label">Target Value</label>
+                      <input
+                        className="form-input"
+                        type="number"
+                        value={editFormData.targetValue}
+                        onChange={e => setEditFormData({ ...editFormData, targetValue: Number(e.target.value) })}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Unit</label>
+                      <input
+                        className="form-input"
+                        value={editFormData.unit}
+                        onChange={e => setEditFormData({ ...editFormData, unit: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-4)' }}>
+                    <div className="form-group">
+                      <label className="form-label">Deadline</label>
+                      <input
+                        className="form-input"
+                        type="date"
+                        value={editFormData.deadline}
+                        onChange={e => setEditFormData({ ...editFormData, deadline: e.target.value })}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Priority</label>
+                      <select
+                        className="form-input"
+                        value={editFormData.priority}
+                        onChange={e => setEditFormData({ ...editFormData, priority: e.target.value as any })}
+                      >
+                        <option value="low">Low</option>
+                        <option value="medium">Medium</option>
+                        <option value="high">High</option>
+                        <option value="urgent">Urgent</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setEditingGoal(null)}>Cancel</button>
+                <button type="submit" className="btn btn-primary">Save Changes</button>
               </div>
             </form>
           </div>
