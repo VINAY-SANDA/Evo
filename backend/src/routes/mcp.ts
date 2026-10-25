@@ -1,80 +1,81 @@
 import { Router, Request, Response } from 'express';
-import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
+import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { createEvoMcpServer } from '../mcp/geminiEvoMcpServer.js';
 
 const router = Router();
-const transports = new Map<string, SSEServerTransport>();
 
-// Helper to set standard SSE and CORS headers
-function setMcpHeaders(res: Response) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-requested-with');
+// Create streamable transport in stateless mode (ideal for cloud/distributed deployment)
+const transport = new StreamableHTTPServerTransport({
+  sessionIdGenerator: undefined,
+});
+
+const server = createEvoMcpServer();
+let isConnected = false;
+async function ensureConnected() {
+  if (!isConnected) {
+    await server.connect(transport);
+    isConnected = true;
+  }
+}
+ensureConnected().catch((err) => {
+  console.error('Failed to initialize MCP Streamable transport:', err);
+});
+
+function setCors(req: Request, res: Response) {
+  const origin = req.headers.origin;
+  if (origin) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+  } else {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+  }
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, HEAD');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, x-requested-with');
 }
 
-// OPTIONS preflight handler
-router.options('*', (_req: Request, res: Response) => {
-  setMcpHeaders(res);
+// OPTIONS preflight
+router.options('*', (req: Request, res: Response) => {
+  setCors(req, res);
   res.status(204).end();
 });
 
-// Info endpoint to quickly check MCP status in browser
+// Info endpoint for quick health and connectivity check
 router.get('/info', (_req: Request, res: Response) => {
   res.json({
     status: 'online',
     server: 'EVO Gemini MCP Server',
     version: '1.0.0',
     endpoint: '/mcp',
-    transport: 'Server-Sent Events (SSE)',
-    activeSessions: transports.size,
+    transport: 'Streamable HTTP + SSE',
   });
 });
 
-// SSE connection handler: handles GET /mcp and GET /mcp/sse
-router.get(['/', '/sse'], async (req: Request, res: Response) => {
-  setMcpHeaders(res);
-  console.log(`⚡ [MCP] New incoming SSE connection from: ${req.headers['user-agent'] || 'Gemini'}`);
+// Universal MCP endpoint handling both GET and POST
+router.all(['/', '/sse'], async (req: Request, res: Response) => {
+  setCors(req, res);
 
-  try {
-    const transport = new SSEServerTransport('/mcp/messages', res);
-    const server = createEvoMcpServer();
-
-    transports.set(transport.sessionId, transport);
-    console.log(`🔌 [MCP] Session started: ${transport.sessionId} (Active: ${transports.size})`);
-
-    res.on('close', () => {
-      console.log(`🔌 [MCP] Session disconnected: ${transport.sessionId}`);
-      transports.delete(transport.sessionId);
-      server.close().catch(() => {});
-    });
-
-    await server.connect(transport);
-  } catch (error: any) {
-    console.error('❌ [MCP] Error establishing SSE connection:', error);
-    if (!res.headersSent) {
-      res.status(500).send(`Failed to establish MCP connection: ${error.message}`);
-    }
+  if (req.method === 'OPTIONS') {
+    return res.status(204).end();
   }
-});
 
-// Message handler: handles client JSON-RPC messages POST /mcp/messages?sessionId=...
-router.post('/messages', async (req: Request, res: Response) => {
-  setMcpHeaders(res);
-  const sessionId = (req.query.sessionId as string) || '';
-  const transport = transports.get(sessionId);
-
-  if (!transport) {
-    console.warn(`⚠️ [MCP] Received message for unknown session: ${sessionId}`);
-    res.status(404).send('Session not found or expired');
-    return;
+  // Ensure accept header is compatible with Streamable HTTP if missing or wildcard
+  if (!req.headers.accept || req.headers.accept === '*/*') {
+    req.headers.accept = 'application/json, text/event-stream';
+  } else if (!req.headers.accept.includes('text/event-stream')) {
+    req.headers.accept = `${req.headers.accept}, text/event-stream`;
   }
 
   try {
-    await transport.handlePostMessage(req, res, req.body);
+    await ensureConnected();
+    await transport.handleRequest(req, res, req.body);
   } catch (error: any) {
-    console.error(`❌ [MCP] Error handling message for session ${sessionId}:`, error);
+    console.error('❌ [MCP] Error handling request:', error);
     if (!res.headersSent) {
-      res.status(500).send(`Error processing message: ${error.message}`);
+      res.status(500).json({
+        jsonrpc: '2.0',
+        error: { code: -32603, message: `Internal server error: ${error.message}` },
+        id: null,
+      });
     }
   }
 });
