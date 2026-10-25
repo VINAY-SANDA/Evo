@@ -143,6 +143,23 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         },
       },
       {
+        name: 'evo_create_habit',
+        description: 'Create a tracked habit in EVO. Provide a short name and optionally a description, icon, color, frequency, target, and unit.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            name: { type: 'string', description: 'Habit name, such as Read for 20 minutes' },
+            description: { type: 'string', description: 'Optional details about the habit' },
+            icon: { type: 'string', description: 'Optional emoji icon' },
+            color: { type: 'string', description: 'Optional hex color, such as #6C5CE7' },
+            frequency: { type: 'string', enum: ['daily', 'weekly'] },
+            target: { type: 'number', description: 'Target count for each frequency period' },
+            unit: { type: 'string', description: 'Target unit, such as times or minutes' },
+          },
+          required: ['name'],
+        },
+      },
+      {
         name: 'evo_toggle_habit',
         description: 'Mark a habit as done or toggle completion status for today.',
         inputSchema: {
@@ -295,6 +312,27 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const habits = remote.habits;
         return {
           content: [{ type: 'text', text: JSON.stringify(habits, null, 2) }],
+        };
+      }
+
+      case 'evo_create_habit': {
+        const name = String(args.name || '').trim();
+        if (!name) throw new Error('A habit name is required.');
+        const habitPayload = {
+          name,
+          description: args.description,
+          icon: args.icon,
+          color: args.color,
+          frequency: args.frequency,
+          target: args.target,
+          unit: args.unit,
+        };
+        const created = await fetchEvo<any>('/habits', {
+          method: 'POST',
+          body: JSON.stringify(habitPayload),
+        });
+        return {
+          content: [{ type: 'text', text: `Created habit "${created.name}" (ID: ${created.id}).` }],
         };
       }
 

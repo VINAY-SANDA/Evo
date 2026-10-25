@@ -19,6 +19,8 @@ import authRouter from './routes/auth.js';
 import { testConnection, query } from './db/connection.js';
 import { DEFAULT_USER_ID, ensureDefaultUser } from './db/userHelper.js';
 import { authenticateApiRequest, authenticateRequest } from './middleware/auth.js';
+import { createEvoMcpOAuthRouter } from './routes/mcpOAuth.js';
+import { ensureMcpOAuthTables } from './services/mcpOAuth.js';
 
 dotenv.config();
 
@@ -48,6 +50,7 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'mcp-session-id', 'x-requested-with'],
 }));
 app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
 
 // ── Health Check ──
 app.get('/api/health', (_req: Request, res: Response) => {
@@ -96,6 +99,7 @@ app.use('/api/progress', progressRouter);
 app.use('/api/reviews', reviewsRouter);
 
 // ── MCP Server Endpoints (for Google Gemini & Remote AI Clients) ──
+app.use(createEvoMcpOAuthRouter());
 app.use('/mcp', authenticateRequest);
 app.use('/sse', authenticateRequest);
 app.use('/mcp', mcpRouter);
@@ -367,6 +371,11 @@ if (process.env.NODE_ENV !== 'test') {
     if (isDbConnected) {
       console.log(`🐘 PostgreSQL: Connected & active`);
       await ensureDefaultUser();
+      try {
+        await ensureMcpOAuthTables();
+      } catch (error) {
+        console.warn('⚠️ MCP OAuth storage could not be initialized:', error instanceof Error ? error.message : error);
+      }
     } else {
       console.log(`💡 PostgreSQL: Not detected (running with in-memory persistence)`);
     }

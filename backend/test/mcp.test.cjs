@@ -15,7 +15,7 @@ test('all registered MCP tools call the backend and return results', async () =>
     const path = new URL(String(url)).pathname;
     const method = options.method || 'GET';
     const body = options.body ? JSON.parse(options.body) : {};
-    requests.push({ path, method, authorization: options.headers?.Authorization });
+    requests.push({ path, method, body, authorization: options.headers?.Authorization });
 
     let result = {};
     if (path.endsWith('/dashboard')) result = { overallScore: 75, todayStats: { totalTasks: 1 } };
@@ -25,6 +25,7 @@ test('all registered MCP tools call the backend and return results', async () =>
     else if (path.endsWith('/goals') && method === 'GET') result = { goals: [] };
     else if (path.endsWith('/goals') && method === 'POST') result = { ...body, title: body.title, category: body.category };
     else if (path.endsWith('/habits') && method === 'GET') result = { habits: [] };
+    else if (path.endsWith('/habits') && method === 'POST') result = { ...body, id: '22222222-2222-4222-8222-222222222222' };
     else if (/\/habits\/.+\/complete$/.test(path)) result = { name: 'EVO test habit', completedToday: true };
     else if (path.endsWith('/finance/summary')) result = { totalIncome: 100, totalExpenses: 20, netSavings: 80 };
     else if (path.endsWith('/finance/expenses')) result = { amount: body.amount, description: body.description, category: body.category };
@@ -47,7 +48,7 @@ test('all registered MCP tools call the backend and return results', async () =>
     const catalog = await client.listTools();
     const expectedNames = [
       'evo_get_dashboard', 'evo_list_tasks', 'evo_create_task', 'evo_toggle_task',
-      'evo_list_goals', 'evo_create_goal', 'evo_list_habits', 'evo_toggle_habit',
+      'evo_list_goals', 'evo_create_goal', 'evo_list_habits', 'evo_create_habit', 'evo_toggle_habit',
       'evo_get_finance_summary', 'evo_log_expense', 'evo_get_memories',
       'evo_add_memory', 'evo_consult_ai_coach',
     ];
@@ -61,6 +62,13 @@ test('all registered MCP tools call the backend and return results', async () =>
       ['evo_list_goals', {}],
       ['evo_create_goal', { title: 'EVO test goal' }],
       ['evo_list_habits', {}],
+      ['evo_create_habit', {
+        name: 'EVO test habit',
+        description: 'MCP creation regression test',
+        frequency: 'daily',
+        target: 2,
+        unit: 'times',
+      }],
       ['evo_toggle_habit', { id: '11111111-1111-4111-8111-111111111111' }],
       ['evo_get_finance_summary', {}],
       ['evo_log_expense', { amount: 20, category: 'food', description: 'EVO test expense' }],
@@ -77,6 +85,12 @@ test('all registered MCP tools call the backend and return results', async () =>
 
     assert.equal(requests.length, expectedNames.length);
     assert.ok(requests.every(request => request.authorization === 'Bearer test-only-evo-mcp-token'));
+    const createdHabitRequest = requests.find(request => request.path.endsWith('/habits') && request.method === 'POST');
+    assert.ok(createdHabitRequest, 'evo_create_habit must POST to /api/habits');
+    assert.deepEqual(
+      { name: createdHabitRequest.body.name, description: createdHabitRequest.body.description, frequency: createdHabitRequest.body.frequency, target: createdHabitRequest.body.target, unit: createdHabitRequest.body.unit },
+      { name: 'EVO test habit', description: 'MCP creation regression test', frequency: 'daily', target: 2, unit: 'times' },
+    );
   } finally {
     global.fetch = originalFetch;
     await client.close();

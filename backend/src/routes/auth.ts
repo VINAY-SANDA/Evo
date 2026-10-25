@@ -3,15 +3,12 @@ import dotenv from 'dotenv';
 import { query } from '../db/connection.js';
 import { DEFAULT_USER_ID } from '../db/userHelper.js';
 import { createOwnerSessionToken, verifyOwnerSessionToken } from '../middleware/auth.js';
+import { getOwnerPasscode, isValidOwnerPasscode } from '../services/ownerCredentials.js';
 
 dotenv.config();
 
 const router = Router();
 
-// Master access key for Vinay (customizable via environment variable)
-const MASTER_PASSCODE = process.env.EVO_MASTER_PASSCODE
-  || process.env.MASTER_PASSWORD
-  || (process.env.NODE_ENV === 'production' ? undefined : 'Vinay@2026');
 const MASTER_EMAIL = process.env.EVO_MASTER_EMAIL || 'vinay@example.com';
 
 // ── Login Endpoint ──
@@ -22,13 +19,13 @@ router.post('/login', async (req: Request, res: Response) => {
     return res.status(400).json({ error: 'Passcode is required' });
   }
 
-  if (!MASTER_PASSCODE || !process.env.EVO_AUTH_SECRET) {
+  if (!getOwnerPasscode() || !process.env.EVO_AUTH_SECRET) {
     return res.status(503).json({ error: 'EVO authentication is not configured on the server.' });
   }
 
   // Validate only for Vinay
   const isEmailMatch = typeof email !== 'string' || email.trim().toLowerCase() === MASTER_EMAIL.toLowerCase();
-  const isPasscodeMatch = typeof passcode === 'string' && passcode.trim() === MASTER_PASSCODE;
+  const isPasscodeMatch = isValidOwnerPasscode(passcode);
 
   if (!isPasscodeMatch || !isEmailMatch) {
     return res.status(401).json({

@@ -145,7 +145,7 @@ test('authenticated API feature journeys work across EVO modules', async (t) => 
     const raw = await response.text();
     let data = null;
     try { data = raw ? JSON.parse(raw) : null; } catch { data = raw; }
-    return { status: response.status, data };
+    return { status: response.status, data, headers: response.headers };
   }
 
   try {
@@ -302,7 +302,12 @@ test('authenticated API feature journeys work across EVO modules', async (t) => 
     await t.test('profile and MCP access', async () => {
       assert.equal((await request('/api/user/profile')).status, 200);
       assert.equal((await request('/api/user/profile', { method: 'PATCH', body: { aiTone: 'balanced' } })).status, 200);
-      assert.equal((await request('/mcp/info', { authorization: undefined })).status, 401);
+      const oauthChallenge = await request('/mcp/info', { authorization: undefined });
+      assert.equal(oauthChallenge.status, 401);
+      assert.match(oauthChallenge.headers.get('www-authenticate'), /resource_metadata=.*oauth-protected-resource\/mcp/);
+      const resourceMetadata = await request('/.well-known/oauth-protected-resource/mcp', { authorization: undefined });
+      assert.equal(resourceMetadata.status, 200);
+      assert.ok(resourceMetadata.data.authorization_servers.length > 0);
       assert.equal((await request('/mcp/info', { authorization: 'Bearer test-only-evo-mcp-token' })).status, 200);
       assert.equal((await request('/api/unknown', { authorization: 'Bearer test-only-evo-mcp-token' })).status, 401);
     });

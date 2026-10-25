@@ -236,6 +236,27 @@ CREATE TABLE IF NOT EXISTS notifications (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+-- ── Gemini / Remote MCP OAuth ──
+CREATE TABLE IF NOT EXISTS evo_mcp_oauth_clients (
+    client_id TEXT PRIMARY KEY,
+    client_info JSONB NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS evo_mcp_oauth_codes (
+    code_hash CHAR(64) PRIMARY KEY,
+    client_id TEXT NOT NULL REFERENCES evo_mcp_oauth_clients(client_id) ON DELETE CASCADE,
+    redirect_uri TEXT NOT NULL,
+    code_challenge TEXT NOT NULL,
+    resource TEXT NOT NULL,
+    scopes TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+    expires_at TIMESTAMPTZ NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS evo_mcp_oauth_codes_expiry_idx
+    ON evo_mcp_oauth_codes (expires_at);
+
 -- ── AI Long-Term Memory (with pgvector embedding) ──
 CREATE TABLE IF NOT EXISTS memories (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),

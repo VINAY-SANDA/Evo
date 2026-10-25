@@ -49,9 +49,10 @@ Set these environment variables for the backend before signing in:
 
 - `EVO_MASTER_PASSCODE`: the owner passcode (local development defaults to `Vinay@2026`; production must set this value).
 - `EVO_AUTH_SECRET`: a long, random secret used to sign seven-day sessions.
-- `EVO_MCP_TOKEN`: a separate secret shared by the MCP server and authenticated MCP clients.
+- `EVO_MCP_PUBLIC_URL`: the full public MCP URL, ending in `/mcp` (for example `https://your-backend.example.com/mcp`). Render deployments can use the service's `RENDER_EXTERNAL_URL` automatically.
+- `EVO_MCP_TOKEN`: a separate secret used by the local stdio MCP bridge when it calls the backend API.
 - `CORS_ORIGIN`: comma-separated frontend origins; local development defaults to `http://localhost:5173`.
 
-The frontend also needs `VITE_API_URL` set to the backend origin when it is hosted separately. MCP clients should send `Authorization: Bearer <EVO_MCP_TOKEN>` to the Streamable HTTP endpoint. The stdio MCP server uses the same token to call the backend API. Local login uses `Vinay@2026` unless `EVO_MASTER_PASSCODE` overrides it; production requires an explicitly configured passcode. Offline frontend login remains disabled.
+The frontend also needs `VITE_API_URL` set to the backend origin when it is hosted separately. The remote Streamable HTTP MCP endpoint publishes OAuth discovery, dynamic client registration, and an authorization-code flow with PKCE. Gemini users approve access by entering the same EVO owner passcode used by the web app. Gemini must reach the MCP endpoint over public HTTPS; `localhost` works only for local clients running on the same machine. The stdio MCP bridge continues to use `EVO_MCP_TOKEN` for backend requests. Local login uses `Vinay@2026` unless `EVO_MASTER_PASSCODE` overrides it; production requires an explicitly configured passcode and `EVO_AUTH_SECRET`. Offline frontend login remains disabled.
 
 Run the backend regression checks with `npm --prefix backend test`.

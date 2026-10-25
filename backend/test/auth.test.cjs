@@ -21,12 +21,21 @@ const owner = {
 function invoke(middleware, { authorization, method = 'GET', originalUrl = '/api/dashboard' } = {}) {
   let statusCode = 200;
   let nextCalled = false;
+  const responseHeaders = {};
   const req = {
     method,
     originalUrl,
-    headers: authorization ? { authorization } : {},
+    protocol: 'http',
+    headers: { host: 'localhost:5000', ...(authorization ? { authorization } : {}) },
+    get(name) {
+      return this.headers[name.toLowerCase()];
+    },
   };
   const res = {
+    setHeader(name, value) {
+      responseHeaders[name.toLowerCase()] = value;
+      return this;
+    },
     status(code) {
       statusCode = code;
       return this;
@@ -40,7 +49,7 @@ function invoke(middleware, { authorization, method = 'GET', originalUrl = '/api
     nextCalled = true;
   });
 
-  return { statusCode, nextCalled };
+  return { statusCode, nextCalled, responseHeaders };
 }
 
 test('owner sessions are signed, owner-bound, and expire', () => {
@@ -68,6 +77,9 @@ test('owner sessions are signed, owner-bound, and expire', () => {
 
 test('protected routes reject anonymous and invalid sessions', () => {
   const token = createOwnerSessionToken(owner);
+  const anonymousMcp = invoke(authenticateRequest);
+  assert.equal(anonymousMcp.statusCode, 401);
+  assert.match(anonymousMcp.responseHeaders['www-authenticate'], /resource_metadata=/);
   assert.equal(invoke(authenticateApiRequest).statusCode, 401);
   assert.equal(invoke(authenticateApiRequest, { authorization: 'Bearer invalid' }).statusCode, 401);
   assert.equal(invoke(authenticateApiRequest, { authorization: `Bearer ${token}` }).nextCalled, true);
@@ -81,6 +93,11 @@ test('MCP credentials are limited to tool-required API operations', () => {
     authorization,
     method: 'POST',
     originalUrl: '/api/tasks',
+  }).nextCalled, true);
+  assert.equal(invoke(authenticateApiRequest, {
+    authorization,
+    method: 'POST',
+    originalUrl: '/api/habits',
   }).nextCalled, true);
   assert.equal(invoke(authenticateApiRequest, {
     authorization,

@@ -1,6 +1,8 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import type { RequestHandler } from 'express';
+import { requireBearerAuth } from '@modelcontextprotocol/sdk/server/auth/middleware/bearerAuth.js';
 import { DEFAULT_USER_ID } from '../db/userHelper.js';
+import { EVO_MCP_SCOPE, evoMcpOAuthProvider, getMcpOAuthProtectedResourceMetadataUrl, getMcpOAuthUrls } from '../services/mcpOAuth.js';
 
 const SESSION_PREFIX = 'evo_sec_';
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7;
@@ -79,7 +81,23 @@ export const authenticateRequest: RequestHandler = (req, res, next) => {
     return next();
   }
 
-  res.status(401).json({ error: 'A valid EVO session or MCP credential is required.' });
+  const { resource } = getMcpOAuthUrls({
+    protocol: req.protocol || 'http',
+    get: name => (typeof req.get === 'function' ? req.get(name) : undefined)
+      || req.headers?.[name.toLowerCase()]?.toString(),
+  });
+  const resourceMetadataUrl = getMcpOAuthProtectedResourceMetadataUrl(resource);
+  if (!token?.startsWith('evo_oauth_')) {
+    res.setHeader?.('WWW-Authenticate', `Bearer resource_metadata="${resourceMetadataUrl}"`);
+    return res.status(401).json({ error: 'invalid_token', error_description: 'OAuth authorization is required.' });
+  }
+
+  return requireBearerAuth({
+    verifier: evoMcpOAuthProvider,
+    requiredScopes: [EVO_MCP_SCOPE],
+    expectedResource: resource,
+    resourceMetadataUrl,
+  })(req, res, next);
 };
 
 function isAllowedMcpApiCall(method: string, originalUrl: string): boolean {
@@ -93,6 +111,7 @@ function isAllowedMcpApiCall(method: string, originalUrl: string): boolean {
     'GET /api/goals',
     'POST /api/goals',
     'GET /api/habits',
+    'POST /api/habits',
     'GET /api/finance/summary',
     'POST /api/finance/expenses',
     'GET /api/memories',
