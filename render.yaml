@@ -13,3 +13,5 @@ services:
         value: "*"
       - key: DATABASE_URL
         sync: false
+      - key: EVO_MCP_TOKEN
+        generateValue: true
