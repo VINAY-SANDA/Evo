@@ -7,6 +7,7 @@ import {
   evoMcpOAuthProvider,
   getMcpOAuthUrls,
 } from '../services/mcpOAuth.js';
+import { getOwnerPasscode } from '../services/ownerCredentials.js';
 
 function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, character => ({
@@ -16,6 +17,35 @@ function escapeHtml(value: string): string {
     '"': '&quot;',
     "'": '&#39;',
   })[character] || character);
+}
+
+function isGoogleOAuthRelay(redirectTarget: string): boolean {
+  const hostname = new URL(redirectTarget).hostname.toLowerCase();
+  return hostname === 'googleusercontent.com' || hostname.endsWith('.googleusercontent.com');
+}
+
+function sendAuthorizationResponse(res: Response, redirectTarget: string) {
+  res.setHeader('Cache-Control', 'no-store');
+  if (!isGoogleOAuthRelay(redirectTarget)) return res.redirect(302, redirectTarget);
+
+  // A form POST's 302 redirect chain remains subject to form-action CSP in browsers.
+  // Google's OAuth relay performs another redirect, which can be blocked there.
+  // A top-level meta refresh starts a fresh navigation and lets Gemini receive the code.
+  const safeTarget = escapeHtml(redirectTarget);
+  res.setHeader('Content-Security-Policy', "default-src 'none'; base-uri 'none'; frame-ancestors 'none'");
+  return res.status(200).type('html').send(`<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="refresh" content="0;url=${safeTarget}">
+  <title>Returning to Gemini</title>
+</head>
+<body>
+  <p>Returning to Gemini…</p>
+  <p><a href="${safeTarget}">Continue to Gemini</a></p>
+</body>
+</html>`);
 }
 
 function consentPage(flow: string, clientName: string, errorMessage = ''): string {
@@ -76,7 +106,11 @@ export function createEvoMcpOAuthRouter(
     }
     res.setHeader('Cache-Control', 'no-store');
     res.setHeader('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'");
-    res.type('html').send(consentPage(flow, await provider.getConsentClientName(flow)));
+    const clientName = await provider.getConsentClientName(flow);
+    if (!getOwnerPasscode()) {
+      return res.status(503).type('html').send(consentPage(flow, clientName, 'EVO is missing EVO_MASTER_PASSCODE on the backend. Set it in the server environment, then restart the backend.'));
+    }
+    res.type('html').send(consentPage(flow, clientName));
   });
 
   router.post('/oauth/consent', async (req: Request, res: Response) => {
@@ -87,15 +121,18 @@ export function createEvoMcpOAuthRouter(
       return res.status(400).send('This EVO authorization request is invalid or expired. Start the Gemini connection again.');
     }
     const clientName = await provider.getConsentClientName(flow);
+    if (!getOwnerPasscode()) {
+      return res.status(503).type('html').send(consentPage(flow, clientName, 'EVO is missing EVO_MASTER_PASSCODE on the backend. Set it in the server environment, then restart the backend.'));
+    }
 
     try {
       if (req.body?.decision === 'deny') {
-        return res.redirect(302, provider.denyOwnerAuthorization(flow));
+        return sendAuthorizationResponse(res, provider.denyOwnerAuthorization(flow));
       }
       if (req.body?.decision !== 'allow') {
         return res.status(400).send(consentPage(flow, clientName, 'Choose whether to allow the connection.'));
       }
-      return res.redirect(302, await provider.authorizeOwner(flow, req.body?.passcode));
+      return sendAuthorizationResponse(res, await provider.authorizeOwner(flow, req.body?.passcode));
     } catch (error) {
       if (error instanceof AccessDeniedError) {
         return res.status(401).type('html').send(consentPage(flow, clientName, 'That passcode was not accepted. Please try again.'));

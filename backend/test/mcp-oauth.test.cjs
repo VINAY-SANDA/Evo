@@ -129,8 +129,13 @@ test('Gemini-compatible MCP OAuth discovers, registers, authorizes, and issues a
       body: new URLSearchParams({ flow, passcode: process.env.EVO_MASTER_PASSCODE, decision: 'allow' }),
       redirect: 'manual',
     });
-    assert.equal(consentResponse.status, 302);
-    const callbackUrl = new URL(consentResponse.headers.get('location'));
+    assert.equal(consentResponse.status, 200);
+    const completionPage = await consentResponse.text();
+    assert.match(completionPage, /Returning to Gemini/);
+    assert.match(completionPage, /http-equiv="refresh"/);
+    const redirectTarget = completionPage.match(/http-equiv="refresh" content="0;url=([^"]+)"/i)[1]
+      .replaceAll('&amp;', '&');
+    const callbackUrl = new URL(redirectTarget);
     assert.equal(callbackUrl.origin, new URL(redirectUri).origin);
     assert.equal(callbackUrl.searchParams.get('state'), 'evo-oauth-state-check');
     const code = callbackUrl.searchParams.get('code');
