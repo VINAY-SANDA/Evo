@@ -4,23 +4,6 @@ import { createEvoMcpServer } from '../mcp/geminiEvoMcpServer.js';
 
 const router = Router();
 
-// Create streamable transport in stateless mode (ideal for cloud/distributed deployment)
-const transport = new StreamableHTTPServerTransport({
-  sessionIdGenerator: undefined,
-});
-
-const server = createEvoMcpServer();
-let isConnected = false;
-async function ensureConnected() {
-  if (!isConnected) {
-    await server.connect(transport);
-    isConnected = true;
-  }
-}
-ensureConnected().catch((err) => {
-  console.error('Failed to initialize MCP Streamable transport:', err);
-});
-
 function setCors(req: Request, res: Response) {
   const origin = req.headers.origin;
   if (origin) {
@@ -30,7 +13,7 @@ function setCors(req: Request, res: Response) {
     res.setHeader('Access-Control-Allow-Origin', '*');
   }
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, HEAD');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, x-requested-with');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, x-requested-with, mcp-session-id');
 }
 
 // OPTIONS preflight
@@ -46,11 +29,11 @@ router.get('/info', (_req: Request, res: Response) => {
     server: 'EVO Gemini MCP Server',
     version: '1.0.0',
     endpoint: '/mcp',
-    transport: 'Streamable HTTP + SSE',
+    transport: 'Streamable HTTP (Per-Request Stateless)',
   });
 });
 
-// Universal MCP endpoint handling both GET and POST
+// Universal MCP endpoint handling both GET and POST per-request
 router.all(['/', '/sse'], async (req: Request, res: Response) => {
   setCors(req, res);
 
@@ -66,7 +49,14 @@ router.all(['/', '/sse'], async (req: Request, res: Response) => {
   }
 
   try {
-    await ensureConnected();
+    // In stateless mode, a fresh transport and server instance must be used per request
+    // to avoid cross-request collision and ensure compliant JSON-RPC message delivery
+    const transport = new StreamableHTTPServerTransport({
+      sessionIdGenerator: undefined,
+    });
+    const server = createEvoMcpServer();
+    await server.connect(transport);
+
     await transport.handleRequest(req, res, req.body);
   } catch (error: any) {
     console.error('❌ [MCP] Error handling request:', error);
