@@ -10,26 +10,7 @@ import path from 'path';
 
 dotenv.config();
 
-// Default API base URL for EVO backend
-const EVO_API_URL = process.env.EVO_API_URL || 'http://localhost:5000/api';
-
-async function fetchEvo<T>(endpoint: string, options: RequestInit = {}): Promise<T | null> {
-  try {
-    const res = await fetch(`${EVO_API_URL}${endpoint}`, {
-      ...options,
-      headers: {
-        'Content-Type': 'application/json',
-        ...(options.headers || {}),
-      },
-    });
-    if (!res.ok) return null;
-    return (await res.json()) as T;
-  } catch (err: any) {
-    return null;
-  }
-}
-
-// In-memory fallback dataset in case backend HTTP is not running
+// Default in-memory fallback dataset in case backend HTTP is not running
 let localTasks = [
   { id: 'task_001', title: 'Solve 2 DSA problems — Trees', status: 'todo', priority: 'high', dueDate: '2026-10-25' },
   { id: 'task_002', title: 'Study Java — Multithreading', status: 'completed', priority: 'high', dueDate: '2026-10-25' },
@@ -55,18 +36,37 @@ let localMemories = [
   'Finds evening workouts more effective than morning ones',
 ];
 
-// ── Initialize MCP Server ──
-const server = new Server(
-  {
-    name: 'gemini-evo-mcp',
-    version: '1.0.0',
-  },
-  {
-    capabilities: {
-      tools: {},
-    },
+export function createEvoMcpServer(customApiUrl?: string): Server {
+  const EVO_API_URL = customApiUrl || process.env.EVO_API_URL || `http://localhost:${process.env.PORT || 5000}/api`;
+
+  async function fetchEvo<T>(endpoint: string, options: RequestInit = {}): Promise<T | null> {
+    try {
+      const res = await fetch(`${EVO_API_URL}${endpoint}`, {
+        ...options,
+        headers: {
+          'Content-Type': 'application/json',
+          ...(options.headers || {}),
+        },
+      });
+      if (!res.ok) return null;
+      return (await res.json()) as T;
+    } catch (err: any) {
+      return null;
+    }
   }
-);
+
+  // ── Initialize MCP Server ──
+  const server = new Server(
+    {
+      name: 'gemini-evo-mcp',
+      version: '1.0.0',
+    },
+    {
+      capabilities: {
+        tools: {},
+      },
+    }
+  );
 
 // ── List Tools ──
 server.setRequestHandler(ListToolsRequestSchema, async () => {
@@ -415,14 +415,23 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   }
 });
 
-// ── Start Stdio Transport ──
-async function main() {
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
-  console.error('🚀 EVO Gemini MCP Server running on stdio');
+  return server;
 }
 
-main().catch((err) => {
-  console.error('Fatal error in EVO Gemini MCP server:', err);
-  process.exit(1);
-});
+// ── Start Stdio Transport if run directly ──
+const isDirectExecution = process.argv[1] && (
+  process.argv[1].endsWith('geminiEvoMcpServer.ts') ||
+  process.argv[1].endsWith('geminiEvoMcpServer.js')
+);
+
+if (isDirectExecution) {
+  const server = createEvoMcpServer();
+  const transport = new StdioServerTransport();
+  server.connect(transport).then(() => {
+    console.error('🚀 EVO Gemini MCP Server running on stdio');
+  }).catch((err) => {
+    console.error('Fatal error in EVO Gemini MCP server:', err);
+    process.exit(1);
+  });
+}
+

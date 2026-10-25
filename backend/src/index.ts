@@ -14,6 +14,7 @@ import remindersRouter from './routes/reminders.js';
 import notificationsRouter from './routes/notifications.js';
 import progressRouter from './routes/progress.js';
 import reviewsRouter from './routes/reviews.js';
+import mcpRouter from './routes/mcp.js';
 import { testConnection, query } from './db/connection.js';
 import { DEFAULT_USER_ID, ensureDefaultUser } from './db/userHelper.js';
 
@@ -30,14 +31,20 @@ const allowedOrigins = process.env.CORS_ORIGIN
 app.use(cors({
   origin: (origin, callback) => {
     if (!origin) return callback(null, true);
-    if (allowedOrigins.includes('*') || allowedOrigins.includes(origin) || origin.endsWith('.vercel.app')) {
+    if (
+      allowedOrigins.includes('*') ||
+      allowedOrigins.includes(origin) ||
+      origin.endsWith('.vercel.app') ||
+      origin.includes('google.com') ||
+      origin.includes('googleusercontent.com')
+    ) {
       return callback(null, true);
     }
     return callback(null, true);
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-requested-with'],
 }));
 app.options('*', cors());
 app.use(express.json());
@@ -85,6 +92,10 @@ app.use('/api/reminders', remindersRouter);
 app.use('/api/notifications', notificationsRouter);
 app.use('/api/progress', progressRouter);
 app.use('/api/reviews', reviewsRouter);
+
+// ── MCP Server Endpoints (for Google Gemini & Remote AI Clients) ──
+app.use('/mcp', mcpRouter);
+app.use('/api/mcp', mcpRouter);
 
 // ── AI Conversation & Strategy ──
 app.post('/api/ai/chat', async (req: Request, res: Response) => {
