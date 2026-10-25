@@ -1,0 +1,196 @@
+/* ── Habits Page Styles ── */
+
+.habits-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.habits-today-bar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.habits-today-info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.habits-today-label {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--evo-text-secondary);
+}
+
+.habits-today-count {
+  font-size: var(--text-lg);
+  font-weight: 800;
+  color: var(--evo-success);
+}
+
+.habits-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: var(--space-5);
+}
+
+.habit-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  transition: all var(--duration-base) var(--ease-out);
+  position: relative;
+  overflow: hidden;
+}
+
+.habit-card.habit-completed {
+  border-color: rgba(0, 230, 118, 0.15);
+  background: linear-gradient(135deg, var(--evo-bg-surface), rgba(0, 230, 118, 0.03));
+}
+
+.habit-card::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--habit-accent, var(--evo-primary));
+  opacity: 0;
+  transition: opacity var(--duration-fast) var(--ease-out);
+}
+
+.habit-card:hover::after {
+  opacity: 1;
+}
+
+.habit-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.habit-card-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+}
+
+.habit-card-streak {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.habit-card-streak-value {
+  font-size: var(--text-lg);
+  font-weight: 800;
+}
+
+.habit-card-streak-label {
+  font-size: var(--text-xs);
+  color: var(--evo-text-tertiary);
+}
+
+.habit-card-name {
+  font-size: var(--text-lg);
+  font-weight: 700;
+}
+
+.habit-card-desc {
+  font-size: var(--text-sm);
+  color: var(--evo-text-tertiary);
+}
+
+.habit-card-week {
+  display: flex;
+  gap: var(--space-2);
+  justify-content: space-between;
+}
+
+.habit-day-dot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.habit-day-dot::before {
+  content: '';
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-full);
+  background: var(--evo-bg-overlay);
+  transition: all var(--duration-fast) var(--ease-out);
+}
+
+.habit-day-dot.filled::before {
+  background: var(--dot-fill, var(--evo-primary));
+  box-shadow: 0 0 8px rgba(108, 92, 231, 0.3);
+}
+
+.habit-day-dot.today::before {
+  border: 2px solid var(--evo-text-tertiary);
+}
+
+.habit-day-dot.today.filled::before {
+  border-color: var(--dot-fill, var(--evo-primary));
+}
+
+.habit-day-label {
+  font-size: 0.6rem;
+  color: var(--evo-text-tertiary);
+  font-weight: 600;
+}
+
+.habit-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--evo-border);
+}
+
+.habit-card-stats {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--evo-text-tertiary);
+}
+
+.habit-toggle-btn {
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-full);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  background: var(--evo-bg-overlay);
+  color: var(--evo-text-secondary);
+  border: 1px solid var(--evo-border);
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-out);
+}
+
+.habit-toggle-btn:hover {
+  background: var(--toggle-color, var(--evo-primary));
+  color: white;
+  border-color: var(--toggle-color, var(--evo-primary));
+}
+
+.habit-toggle-btn.completed {
+  background: var(--evo-success);
+  color: white;
+  border-color: var(--evo-success);
+}
+
+@media (max-width: 800px) {
+  .habits-card-grid {
+    grid-template-columns: 1fr;
+  }
+}

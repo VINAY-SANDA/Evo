@@ -1,0 +1,99 @@
+/* ── Reminders Page Styles ── */
+
+.reminders-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.reminders-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: var(--space-5);
+}
+
+.reminder-card {
+  padding: var(--space-5);
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--evo-border-subtle);
+  background: var(--evo-bg-card);
+  transition: all var(--transition-fast);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.reminder-card.inactive {
+  opacity: 0.6;
+}
+
+.reminder-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.reminder-time-badge {
+  font-size: var(--text-base);
+  font-weight: 700;
+  color: var(--evo-text-primary);
+  background: var(--evo-bg-surface);
+  border: 1px solid var(--evo-border-subtle);
+  padding: 4px 10px;
+  border-radius: var(--radius-md);
+}
+
+/* Toggle Switch */
+.toggle-switch {
+  width: 44px;
+  height: 24px;
+  border-radius: var(--radius-full);
+  border: none;
+  background: var(--evo-border-subtle);
+  cursor: pointer;
+  position: relative;
+  transition: background-color var(--transition-fast);
+  padding: 2px;
+}
+
+.toggle-switch.on {
+  background: var(--evo-primary);
+}
+
+.toggle-switch-thumb {
+  display: block;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--radius-full);
+  background: #fff;
+  transition: transform var(--transition-fast);
+}
+
+.toggle-switch.on .toggle-switch-thumb {
+  transform: translateX(20px);
+}
+
+.reminder-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.reminder-title {
+  font-size: var(--text-base);
+  font-weight: 600;
+  color: var(--evo-text-primary);
+}
+
+.reminder-recurrence {
+  font-size: var(--text-xs);
+  color: var(--evo-text-secondary);
+}
+
+.reminder-goal-link {
+  font-size: var(--text-xs);
+  color: var(--evo-primary);
+  margin-top: var(--space-2);
+  padding-top: var(--space-2);
+  border-top: 1px dashed var(--evo-border-subtle);
+}

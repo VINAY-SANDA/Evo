@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "gemini-evo": {
+      "command": "node",
+      "args": [
+        "c:/Users/VINAY/Desktop/evo/backend/dist/mcp/geminiEvoMcpServer.js"
+      ],
+      "env": {
+        "EVO_API_URL": "http://localhost:5000/api"
+      }
+    }
+  }
+}

@@ -1,0 +1,267 @@
+/* ── Finance Page Styles ── */
+
+.finance-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.finance-summary {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-5);
+  margin-bottom: var(--space-2);
+}
+
+@media (max-width: 768px) {
+  .finance-summary {
+    grid-template-columns: 1fr;
+  }
+}
+
+.finance-summary-card {
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-5);
+  position: relative;
+  overflow: hidden;
+}
+
+.finance-summary-icon {
+  font-size: 1.75rem;
+  margin-bottom: var(--space-2);
+}
+
+.finance-summary-label {
+  font-size: var(--text-sm);
+  color: var(--evo-text-muted);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.finance-summary-value {
+  font-size: var(--text-2xl);
+  font-weight: 700;
+  margin-top: var(--space-1);
+}
+
+.finance-summary-value.income,
+.finance-row-amount.income {
+  color: var(--evo-success);
+}
+
+.finance-summary-value.expense,
+.finance-row-amount.expense {
+  color: var(--evo-danger);
+}
+
+/* Expense Breakdown */
+.expense-breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-2) 0;
+}
+
+.expense-category-row {
+  display: grid;
+  grid-template-columns: 140px 1fr 100px 50px;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+@media (max-width: 640px) {
+  .expense-category-row {
+    grid-template-columns: 1fr auto;
+    row-gap: var(--space-2);
+  }
+  .expense-category-bar-container {
+    grid-column: 1 / -1;
+  }
+}
+
+.expense-category-info {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.expense-category-emoji {
+  font-size: 1.25rem;
+}
+
+.expense-category-name {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--evo-text-primary);
+}
+
+.expense-category-amount {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  text-align: right;
+  color: var(--evo-text-primary);
+}
+
+.expense-category-percent {
+  font-size: var(--text-xs);
+  color: var(--evo-text-muted);
+  text-align: right;
+}
+
+/* Savings Goals in Overview */
+.savings-goals-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.savings-goal-card {
+  padding: var(--space-4);
+  background: var(--evo-bg-glass);
+  border: 1px solid var(--evo-border-subtle);
+  border-radius: var(--radius-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.savings-goal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.savings-goal-name {
+  font-size: var(--text-base);
+  font-weight: 600;
+  color: var(--evo-text-primary);
+}
+
+.savings-goal-percent {
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--evo-success);
+}
+
+.savings-goal-amounts {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-1);
+}
+
+.savings-goal-current {
+  font-size: var(--text-lg);
+  font-weight: 700;
+  color: var(--evo-text-primary);
+}
+
+.savings-goal-target {
+  font-size: var(--text-sm);
+  color: var(--evo-text-muted);
+}
+
+.savings-goal-deadline {
+  font-size: var(--text-xs);
+  color: var(--evo-text-muted);
+}
+
+/* Finance Transaction Table */
+.finance-table {
+  display: flex;
+  flex-direction: column;
+  divide-y: 1px solid var(--evo-border-subtle);
+}
+
+.finance-row {
+  display: flex;
+  align-items: center;
+  padding: var(--space-3) var(--space-2);
+  border-bottom: 1px solid var(--evo-border-subtle);
+  transition: background-color var(--transition-fast);
+}
+
+.finance-row:hover {
+  background-color: var(--evo-bg-hover);
+}
+
+.finance-row:last-child {
+  border-bottom: none;
+}
+
+.finance-row-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
+  margin-right: var(--space-4);
+  flex-shrink: 0;
+}
+
+.finance-row-info {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.finance-row-desc {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--evo-text-primary);
+}
+
+.finance-row-date {
+  font-size: var(--text-xs);
+  color: var(--evo-text-muted);
+  margin-top: 2px;
+}
+
+.finance-row-amount {
+  font-size: var(--text-base);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+/* Detailed Savings Goal Cards */
+.savings-detail-card {
+  padding: var(--space-6);
+  border: 1px solid var(--evo-border-subtle);
+  background: var(--evo-bg-card);
+  border-radius: var(--radius-xl);
+}
+
+.savings-breakdown {
+  display: grid;
+  gap: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--evo-border-subtle);
+}
+
+@media (max-width: 640px) {
+  .savings-breakdown {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+}
+
+.savings-breakdown-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.savings-breakdown-label {
+  font-size: var(--text-xs);
+  color: var(--evo-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.savings-breakdown-value {
+  font-size: var(--text-base);
+  font-weight: 700;
+  color: var(--evo-text-primary);
+}

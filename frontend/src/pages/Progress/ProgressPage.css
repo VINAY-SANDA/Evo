@@ -1,0 +1,305 @@
+/* ── Progress Page Styles ── */
+
+.progress-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.filter-pill-group {
+  display: flex;
+  background: var(--evo-bg-card);
+  padding: 4px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--evo-border-subtle);
+  gap: 2px;
+}
+
+.filter-pill {
+  border: none;
+  background: transparent;
+  color: var(--evo-text-secondary);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.filter-pill.active {
+  background: var(--evo-primary);
+  color: #fff;
+  box-shadow: 0 2px 8px var(--evo-primary-glow);
+}
+
+/* Progress Hero Card */
+.progress-hero-card {
+  padding: var(--space-6);
+  background: linear-gradient(135deg, rgba(108, 92, 231, 0.12), rgba(0, 210, 255, 0.05));
+  border: 1px solid rgba(108, 92, 231, 0.25);
+  border-radius: var(--radius-2xl);
+  box-shadow: var(--shadow-lg);
+}
+
+.progress-hero-main {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+}
+
+@media (max-width: 768px) {
+  .progress-hero-main {
+    flex-direction: column;
+    text-align: center;
+  }
+}
+
+.progress-circle-wrapper {
+  position: relative;
+  width: 140px;
+  height: 140px;
+  flex-shrink: 0;
+}
+
+.progress-circle-svg {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+.progress-circle-bg {
+  fill: none;
+  stroke: var(--evo-border-subtle);
+  stroke-width: 10;
+}
+
+.progress-circle-fill {
+  fill: none;
+  stroke: url(#scoreGradient);
+  stroke: var(--evo-primary);
+  stroke-width: 10;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 1s ease-in-out;
+}
+
+.progress-circle-content {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.progress-score-num {
+  font-size: var(--text-3xl);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--evo-text-primary);
+}
+
+.progress-score-total {
+  font-size: var(--text-xs);
+  color: var(--evo-text-muted);
+  font-weight: 600;
+}
+
+.progress-hero-info {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.progress-hero-title {
+  font-size: var(--text-xl);
+  font-weight: 700;
+  color: var(--evo-text-primary);
+}
+
+.progress-hero-desc {
+  font-size: var(--text-sm);
+  color: var(--evo-text-secondary);
+  line-height: 1.5;
+  max-width: 650px;
+}
+
+.progress-hero-stats {
+  display: flex;
+  gap: var(--space-6);
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--evo-border-subtle);
+}
+
+@media (max-width: 640px) {
+  .progress-hero-stats {
+    justify-content: center;
+    gap: var(--space-4);
+  }
+}
+
+.progress-hero-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.progress-hero-stat .stat-label {
+  font-size: var(--text-xs);
+  color: var(--evo-text-muted);
+  font-weight: 500;
+}
+
+.progress-hero-stat .stat-val {
+  font-size: var(--text-base);
+  font-weight: 700;
+  color: var(--evo-text-primary);
+}
+
+/* Category Progress Grid */
+.section-title-group {
+  margin-top: var(--space-2);
+}
+
+.section-title {
+  font-size: var(--text-lg);
+  font-weight: 700;
+  color: var(--evo-text-primary);
+}
+
+.section-subtitle {
+  font-size: var(--text-xs);
+  color: var(--evo-text-muted);
+}
+
+.progress-category-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: var(--space-5);
+}
+
+.category-progress-card {
+  padding: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  border: 1px solid var(--evo-border-subtle);
+  background: var(--evo-bg-card);
+  border-radius: var(--radius-xl);
+  transition: transform var(--transition-fast), border-color var(--transition-fast);
+}
+
+.category-progress-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--evo-border-focus);
+}
+
+.category-progress-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.category-icon-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.category-emoji-badge {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-lg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.35rem;
+}
+
+.category-name {
+  font-size: var(--text-base);
+  font-weight: 600;
+  color: var(--evo-text-primary);
+}
+
+.category-delta {
+  font-size: var(--text-xs);
+  font-weight: 500;
+}
+
+.category-delta.positive {
+  color: var(--evo-success);
+}
+
+.category-delta.negative {
+  color: var(--evo-danger);
+}
+
+.category-score-badge {
+  font-size: var(--text-lg);
+  font-weight: 800;
+  padding: 4px 10px;
+  border-radius: var(--radius-md);
+  border: 1px solid;
+}
+
+.category-progress-bar-container {
+  width: 100%;
+}
+
+.category-progress-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: var(--text-xs);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--evo-border-subtle);
+}
+
+.category-status-text {
+  font-weight: 500;
+  color: var(--evo-text-secondary);
+}
+
+.category-inspect-btn {
+  background: none;
+  border: none;
+  color: var(--evo-primary);
+  font-weight: 600;
+  font-size: var(--text-xs);
+  cursor: pointer;
+  padding: 0;
+  transition: color var(--transition-fast);
+}
+
+.category-inspect-btn:hover {
+  color: var(--evo-primary-hover);
+  text-decoration: underline;
+}
+
+/* AI Insight Banner */
+.ai-insight-banner {
+  padding: var(--space-6);
+  border-radius: var(--radius-xl);
+  background: linear-gradient(135deg, rgba(108, 92, 231, 0.1), rgba(0, 230, 118, 0.05));
+  border: 1px solid rgba(108, 92, 231, 0.2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.ai-insight-badge {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--evo-primary);
+}
+
+.ai-insight-text {
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  color: var(--evo-text-primary);
+}
