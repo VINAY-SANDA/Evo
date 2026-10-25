@@ -36,109 +36,101 @@ OPERATING PRINCIPLES:
 `.trim();
 }
 
-export function generateSimulatedAiResponse(prompt: string, context: AiContext): {
-  reply: string;
-  actions?: Array<{ label: string; action: string; type: 'primary' | 'secondary' }>;
-} {
-  const lower = prompt.toLowerCase();
-
-  if (lower.includes('today') || lower.includes('plan')) {
-    return {
-      reply: `Here is your optimized execution protocol for today, ${context.userName}:
-
-1. **Deep Work Block (09:00 - 10:30)**: Solve 2 DSA Tree problems. You have a 14-day streak to defend.
-2. **Technical Mastery (10:30 - 11:30)**: Complete Java Multithreading module (ExecutorService & locks).
-3. **Agency Growth (11:30 - 12:30)**: Contact 5 prospective clients for Vyralabs.
-4. **Physical Reset (17:30)**: Upper body strength session.
-5. **Evening Protocol (20:00)**: Daily review & review tomorrow's calendar.
-
-Total estimated focus time: 3.5 hours. No zero days.`,
-      actions: [
-        { label: 'Schedule Blocks', action: 'accept_plan', type: 'primary' },
-        { label: 'Adjust Priorities', action: 'adjust_plan', type: 'secondary' },
-      ],
-    };
-  }
-
-  if (lower.includes('finance') || lower.includes('money') || lower.includes('budget') || lower.includes('save')) {
-    return {
-      reply: `Financial status audit:
-• Total Income: ₹${context.monthlySavings.income.toLocaleString()}
-• Total Expenses: ₹${context.monthlySavings.expenses.toLocaleString()}
-• Net Savings: ₹${context.monthlySavings.net.toLocaleString()}
-
-Observation: You have allocated 37% toward your ₹50,000 Emergency Fund. Your primary food expenses have been slightly higher over the weekend. Keep discretionary daily spend below ₹400 for the remainder of the month to hit your target.`,
-      actions: [
-        { label: 'Log New Expense', action: 'log_expense', type: 'primary' },
-        { label: 'View Savings Timeline', action: 'view_savings', type: 'secondary' },
-      ],
-    };
-  }
-
-  if (lower.includes('risk') || lower.includes('goal')) {
-    return {
-      reply: `Trajectory Risk Assessment:
-
-⚠️ **At Risk: Save ₹50,000**
-• Target Deadline: Mar 2027
-• Current pace: ₹1,200/week (needs ₹1,800/week)
-• Corrective action: Transfer ₹2,400 from next consulting milestone directly to savings.
-
-✅ **Strong Momentum: Master Java & Spring Boot (78%)**
-• 21-day streak. Multithreading concepts 85% completed.
-
-Would you like to auto-adjust your daily study and outreach plan?`,
-      actions: [
-        { label: 'Adjust my plan', action: 'adjust_plan', type: 'primary' },
-        { label: 'Show details', action: 'show_details', type: 'secondary' },
-      ],
-    };
-  }
-
-  return {
-    reply: `I have updated your context model. To reach your goal of landing a SWE role and scaling Vyralabs, consistency on the daily fundamentals is everything. 
-
-What specific area would you like to review: DSA trajectory, Vyralabs outreach, or tomorrow's time blocks?`,
-    actions: [
-      { label: 'Review DSA Trajectory', action: 'review_dsa', type: 'primary' },
-      { label: 'Plan Tomorrow', action: 'accept_plan', type: 'secondary' },
-    ],
-  };
-}
-
 export async function getAiResponse(prompt: string, context: AiContext): Promise<{
   reply: string;
   actions?: Array<{ label: string; action: string; type: 'primary' | 'secondary' }>;
 }> {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (apiKey && apiKey !== 'your_gemini_api_key_here') {
-    try {
-      const systemPrompt = buildSystemPrompt(context);
-      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          system_instruction: { parts: [{ text: systemPrompt }] },
-          contents: [{ parts: [{ text: prompt }] }],
-        }),
-      });
-      if (res.ok) {
-        const data = await res.json() as any;
-        const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (text) {
-          return {
-            reply: text,
-            actions: [
-              { label: 'Accept Directives', action: 'accept_plan', type: 'primary' },
-              { label: 'Adjust Plan', action: 'adjust_plan', type: 'secondary' },
-            ],
-          };
-        }
-      }
-    } catch {
-      // Fall through to simulated AI engine
-    }
+  const apiKey = process.env.GEMINI_API_KEY?.trim();
+  if (!apiKey || apiKey === 'your_gemini_api_key_here') {
+    return {
+      reply: 'Gemini is not configured yet. Add GEMINI_API_KEY to backend/.env and restart the backend to enable live AI responses.',
+      actions: [],
+    };
   }
 
-  return generateSimulatedAiResponse(prompt, context);
+  const model = process.env.GEMINI_MODEL?.trim() || 'gemini-3.8-flash';
+  const fallbackModel = process.env.GEMINI_FALLBACK_MODEL?.trim() || 'gemini-3.5-flash-lite';
+  const configuredTimeout = Number(process.env.GEMINI_REQUEST_TIMEOUT_MS);
+  const timeoutMs = Number.isFinite(configuredTimeout) && configuredTimeout > 0
+    ? Math.min(configuredTimeout, 30000)
+    : 12000;
+  const systemPrompt = buildSystemPrompt(context);
+  const requestModel = (modelName: string) => fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelName)}:generateContent`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-goog-api-key': apiKey,
+      },
+      signal: AbortSignal.timeout(timeoutMs),
+      body: JSON.stringify({
+        system_instruction: { parts: [{ text: systemPrompt }] },
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { maxOutputTokens: 700, temperature: 0.5 },
+      }),
+    },
+  );
+
+  const readError = async (response: Response) => {
+    try {
+      const errorBody = await response.json() as { error?: { message?: string } };
+      return errorBody.error?.message || 'Check the API key, model name, and Google AI Studio quota.';
+    } catch {
+      return 'Check the API key, model name, and Google AI Studio quota.';
+    }
+  };
+
+  try {
+    let response: Response;
+    try {
+      response = await requestModel(model);
+    } catch (error) {
+      const timedOut = error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError');
+      if (!timedOut || fallbackModel === model) throw error;
+      console.warn(`Gemini model ${model} timed out; trying ${fallbackModel}.`);
+      response = await requestModel(fallbackModel);
+    }
+
+    if ((response.status === 429 || response.status === 503) && fallbackModel !== model) {
+      const detail = await readError(response);
+      console.warn(`Gemini model ${model} returned HTTP ${response.status}; trying ${fallbackModel}: ${detail}`);
+      response = await requestModel(fallbackModel);
+    }
+
+    if (!response.ok) {
+      const detail = await readError(response);
+      console.error(`Gemini API returned HTTP ${response.status}: ${detail}`);
+      const busy = response.status === 429 || response.status === 503;
+      return {
+        reply: busy
+          ? 'Gemini is busy right now. Please try again in a moment.'
+          : `Gemini API error (${response.status}): ${detail}`,
+        actions: [],
+      };
+    }
+
+    const data = await response.json() as any;
+    const answer = data?.candidates?.[0]?.content?.parts?.map((part: { text?: string }) => part.text || '').join('').trim();
+    if (!answer) {
+      return { reply: 'Gemini returned no text for that message. Try rephrasing it or check the API response in the backend log.', actions: [] };
+    }
+
+    return {
+      reply: answer,
+      actions: [
+        { label: 'Accept Directives', action: 'accept_plan', type: 'primary' },
+        { label: 'Adjust Plan', action: 'adjust_plan', type: 'secondary' },
+      ],
+    };
+  } catch (error) {
+    const timedOut = error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError');
+    console.error(timedOut ? 'Gemini API request timed out.' : 'Could not reach the Gemini API:', error);
+    return {
+      reply: timedOut
+        ? 'Gemini took too long to respond. Please try again in a moment.'
+        : 'Could not reach the Gemini API. Check the backend internet connection and try again.',
+      actions: [],
+    };
+  }
 }

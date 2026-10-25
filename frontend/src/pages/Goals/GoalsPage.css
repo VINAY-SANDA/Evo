@@ -156,8 +156,8 @@
 
 .goal-action-btn.edit:hover {
   color: var(--evo-primary);
-  border-color: rgba(41, 151, 255, 0.4);
-  background: rgba(41, 151, 255, 0.1);
+  border-color: rgba(0, 102, 255, 0.4);
+  background: rgba(0, 102, 255, 0.1);
 }
 
 .goal-action-btn.delete:hover {
@@ -216,9 +216,9 @@
 }
 
 .goal-stepper-btn:hover {
-  background: rgba(41, 151, 255, 0.12);
+  background: rgba(0, 102, 255, 0.12);
   color: var(--evo-primary);
-  border-color: rgba(41, 151, 255, 0.3);
+  border-color: rgba(0, 102, 255, 0.3);
 }
 
 @media (max-width: 800px) {

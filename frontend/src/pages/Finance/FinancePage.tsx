@@ -1,398 +1,382 @@
-import { useState, useEffect } from 'react';
-import type { Expense, ExpenseCategory } from '../../types';
-import { getFinanceSummary, addExpense } from '../../services/api';
+import { useEffect, useState } from 'react';
+import type { Expense, ExpenseCategory, Income, SavingsGoal } from '../../types';
+import { addExpense, addIncome, addSavingsGoal, deleteExpense, deleteIncome, deleteSavingsGoal, getFinanceSummary } from '../../services/api';
 import './FinancePage.css';
 
-const categoryEmojis: Record<string, string> = {
+type FinanceTab = 'overview' | 'expenses' | 'income' | 'savings';
+type FinanceModal = 'expense' | 'income' | 'savings' | null;
+
+const categoryEmojis: Record<ExpenseCategory, string> = {
   food: '🍔', travel: '🚗', shopping: '🛍️', education: '📚',
   bills: '📄', entertainment: '🎬', health: '💊', other: '📌',
 };
 
-const categoryColors: Record<string, string> = {
-  food: '#FF9F0A', travel: '#0A84FF', shopping: '#BF5AF2', education: '#5E5CE6',
-  bills: '#8E8E93', entertainment: '#64D2FF', health: '#30D158', other: '#2997FF',
+const categoryColors: Record<ExpenseCategory, string> = {
+  food: '#E53935', travel: '#4D94FF', shopping: '#0066FF', education: '#00C853',
+  bills: '#808080', entertainment: '#0052CC', health: '#35D977', other: '#CCCCCC',
 };
 
-export default function FinancePage() {
-  const [tab, setTab] = useState<'overview' | 'expenses' | 'income' | 'savings'>('overview');
-  const [showModal, setShowModal] = useState(false);
-  const [expenses, setExpenses] = useState<Expense[]>([]);
-  const [incomes, setIncomes] = useState<any[]>([]);
-  const [savingsGoals, setSavingsGoals] = useState<any[]>([]);
-  const [totalIncome, setTotalIncome] = useState<number>(0);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
+const today = () => new Date().toISOString().slice(0, 10);
 
-  const [formData, setFormData] = useState<{
-    amount: number;
-    category: string;
-    description: string;
-    date: string;
-  }>({
-    amount: 0,
-    category: 'food',
-    description: '',
-    date: new Date().toISOString().split('T')[0],
-  });
+export default function FinancePage() {
+  const [tab, setTab] = useState<FinanceTab>('overview');
+  const [modal, setModal] = useState<FinanceModal>(null);
+  const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [incomes, setIncomes] = useState<Income[]>([]);
+  const [savingsGoals, setSavingsGoals] = useState<SavingsGoal[]>([]);
+  const [totalIncome, setTotalIncome] = useState(0);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const [expenseForm, setExpenseForm] = useState({ amount: '', category: 'food' as ExpenseCategory, description: '', date: today() });
+  const [incomeForm, setIncomeForm] = useState({ amount: '', source: '', category: 'General', date: today() });
+  const [savingsForm, setSavingsForm] = useState({ title: '', targetAmount: '', currentAmount: '0', deadline: '' });
 
   useEffect(() => {
-    getFinanceSummary().then(res => {
-      if (res) {
-        if (res.expenses) setExpenses(res.expenses);
-        if (res.income) setIncomes(res.income);
-        if (res.savingsGoals) setSavingsGoals(res.savingsGoals);
-        if (res.totalIncome !== undefined) setTotalIncome(res.totalIncome);
-      }
+    getFinanceSummary().then(result => {
+      if (!result) return;
+      setExpenses(result.expenses);
+      setIncomes(result.income);
+      setSavingsGoals(result.savingsGoals);
+      setTotalIncome(result.totalIncome);
     });
   }, []);
 
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3000);
+  const showToast = (message: string) => {
+    setToastMessage(message);
+    window.setTimeout(() => setToastMessage(null), 3000);
   };
 
-  const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
+  const totalExpenses = expenses.reduce((sum, expense) => sum + Number(expense.amount), 0);
   const netSavings = totalIncome - totalExpenses;
   const savingsRate = totalIncome > 0 ? Math.round((netSavings / totalIncome) * 100) : 0;
+  const expenseByCategory = expenses.reduce((totals, expense) => {
+    totals[expense.category] = (totals[expense.category] || 0) + Number(expense.amount);
+    return totals;
+  }, {} as Partial<Record<ExpenseCategory, number>>);
 
-  // Group expenses by category
-  const expenseByCategory = expenses.reduce((acc, e) => {
-    acc[e.category] = (acc[e.category] || 0) + e.amount;
-    return acc;
-  }, {} as Record<string, number>);
-
-  const handleLogExpense = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formData.amount || formData.amount <= 0) return;
-
-    const newExp = await addExpense({
-      amount: formData.amount,
-      category: formData.category as ExpenseCategory,
-      description: formData.description.trim() || formData.category,
-      date: formData.date,
+  const saveExpense = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (saving) return;
+    setSaving(true);
+    const created = await addExpense({
+      amount: Number(expenseForm.amount),
+      category: expenseForm.category,
+      description: expenseForm.description.trim() || expenseForm.category,
+      date: expenseForm.date,
     });
-
-    if (newExp) {
-      setExpenses(prev => [newExp, ...prev]);
-      showToast(`✓ Logged ₹${newExp.amount} for ${newExp.category}`);
+    setSaving(false);
+    if (!created) {
+      showToast('Expense was not saved. Please try again.');
+      return;
     }
-    setShowModal(false);
-    setFormData({
-      amount: 0,
-      category: 'food',
-      description: '',
-      date: new Date().toISOString().split('T')[0],
-    });
+    setExpenses(current => [created, ...current]);
+    setModal(null);
+    setExpenseForm({ amount: '', category: 'food', description: '', date: today() });
+    showToast(`Expense saved: ₹${Number(created.amount).toLocaleString()}.`);
   };
+
+  const saveIncome = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (saving) return;
+    setSaving(true);
+    const created = await addIncome({
+      amount: Number(incomeForm.amount),
+      source: incomeForm.source.trim(),
+      category: incomeForm.category.trim() || 'General',
+      date: incomeForm.date,
+    });
+    setSaving(false);
+    if (!created) {
+      showToast('Income was not saved. Please try again.');
+      return;
+    }
+    setIncomes(current => [created, ...current]);
+    setTotalIncome(current => current + Number(created.amount));
+    setModal(null);
+    setIncomeForm({ amount: '', source: '', category: 'General', date: today() });
+    showToast(`Income saved: ₹${Number(created.amount).toLocaleString()}.`);
+  };
+
+  const saveSavingsGoal = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (saving) return;
+    setSaving(true);
+    const created = await addSavingsGoal({
+      title: savingsForm.title.trim(),
+      targetAmount: Number(savingsForm.targetAmount),
+      currentAmount: Number(savingsForm.currentAmount) || 0,
+      deadline: savingsForm.deadline,
+    });
+    setSaving(false);
+    if (!created) {
+      showToast('Savings goal was not saved. Please try again.');
+      return;
+    }
+    setSavingsGoals(current => [...current, created]);
+    setModal(null);
+    setSavingsForm({ title: '', targetAmount: '', currentAmount: '0', deadline: '' });
+    showToast(`Savings goal “${created.title}” added.`);
+  };
+
+  const removeExpense = async (expense: Expense) => {
+    if (!window.confirm(`Delete the expense “${expense.description}” (₹${Number(expense.amount).toLocaleString()})?`)) return;
+    const deleted = await deleteExpense(expense.id);
+    if (!deleted) {
+      showToast('Expense could not be deleted. Please try again.');
+      return;
+    }
+    setExpenses(current => current.filter(item => item.id !== expense.id));
+    showToast('Expense deleted.');
+  };
+
+  const removeIncome = async (income: Income) => {
+    if (!window.confirm(`Delete the income entry “${income.source}” (₹${Number(income.amount).toLocaleString()})?`)) return;
+    const deleted = await deleteIncome(income.id);
+    if (!deleted) {
+      showToast('Income could not be deleted. Please try again.');
+      return;
+    }
+    setIncomes(current => current.filter(item => item.id !== income.id));
+    setTotalIncome(current => Math.max(0, current - Number(income.amount)));
+    showToast('Income deleted.');
+  };
+
+  const removeSavingsGoal = async (goal: SavingsGoal) => {
+    if (!window.confirm(`Delete the savings goal “${goal.title}”?`)) return;
+    const deleted = await deleteSavingsGoal(goal.id);
+    if (!deleted) {
+      showToast('Savings goal could not be deleted. Please try again.');
+      return;
+    }
+    setSavingsGoals(current => current.filter(item => item.id !== goal.id));
+    showToast('Savings goal deleted.');
+  };
+
+  const primaryAction = tab === 'income'
+    ? { label: '+ Add Income', action: 'income' as const }
+    : tab === 'savings'
+      ? { label: '+ Add Savings Goal', action: 'savings' as const }
+      : { label: '+ Add Expense', action: 'expense' as const };
 
   return (
     <div className="finance-page">
-      {toastMessage && (
-        <div className="toast-notification animate-fade-in-up">
-          {toastMessage}
-        </div>
-      )}
+      {toastMessage && <div className="toast-notification animate-fade-in-up" role="status">{toastMessage}</div>}
 
-      {/* Header */}
       <div className="page-header flex items-center justify-between">
         <div>
-          <h1 className="page-title">Personal Capital & Runway</h1>
-          <p className="page-subtitle">Discretionary burn tracking & financial runway management</p>
+          <h1 className="page-title">Money & Savings</h1>
+          <p className="page-subtitle">Track what comes in, what goes out, and what you’re building toward.</p>
         </div>
-        <button className="btn btn-primary" onClick={() => setShowModal(true)}>
-          + Log Expense
+        <button className="btn btn-primary" onClick={() => setModal(primaryAction.action)}>
+          {primaryAction.label}
         </button>
       </div>
 
-      {/* Metric Cards */}
       <div className="finance-metrics-grid">
-        <div className="card metric-card animate-fade-in-up stagger-1">
-          <div className="metric-header">
-            <span className="metric-icon green">💵</span>
-            <span className="metric-label">Monthly Inflow</span>
-          </div>
+        <div className="card metric-card">
+          <div className="metric-header"><span className="metric-icon green">💵</span><span className="metric-label">Total Income</span></div>
           <div className="metric-value">₹{totalIncome.toLocaleString()}</div>
-          <span className="metric-change positive">From active streams</span>
+          <span className="metric-change positive">{incomes.length} income entries</span>
         </div>
-
-        <div className="card metric-card animate-fade-in-up stagger-2">
-          <div className="metric-header">
-            <span className="metric-icon red">💳</span>
-            <span className="metric-label">Monthly Burn</span>
-          </div>
+        <div className="card metric-card">
+          <div className="metric-header"><span className="metric-icon red">💳</span><span className="metric-label">Total Expenses</span></div>
           <div className="metric-value">₹{totalExpenses.toLocaleString()}</div>
-          <span className="metric-change">Actual live expenses</span>
+          <span className="metric-change">{expenses.length} expense entries</span>
         </div>
-
-        <div className="card metric-card animate-fade-in-up stagger-3">
-          <div className="metric-header">
-            <span className="metric-icon purple">🛡️</span>
-            <span className="metric-label">Net Surplus</span>
-          </div>
+        <div className="card metric-card">
+          <div className="metric-header"><span className="metric-icon purple">🛡️</span><span className="metric-label">Net Savings</span></div>
           <div className="metric-value">₹{netSavings.toLocaleString()}</div>
-          <span className={`metric-change ${netSavings >= 0 ? 'positive' : 'negative'}`}>
-            {savingsRate}% savings rate
-          </span>
+          <span className={`metric-change ${netSavings >= 0 ? 'positive' : 'negative'}`}>{savingsRate}% savings rate</span>
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="filter-pill-group" style={{ marginBottom: 'var(--space-6)' }}>
-        {(['overview', 'expenses', 'income', 'savings'] as const).map(t => (
+      <div className="filter-pill-group finance-tabs" role="tablist" aria-label="Finance sections">
+        {(['overview', 'expenses', 'income', 'savings'] as const).map(section => (
           <button
-            key={t}
-            className={`filter-pill ${tab === t ? 'active' : ''}`}
-            onClick={() => setTab(t)}
+            key={section}
+            className={`filter-pill ${tab === section ? 'active' : ''}`}
+            role="tab"
+            aria-selected={tab === section}
+            onClick={() => setTab(section)}
           >
-            {t.charAt(0).toUpperCase() + t.slice(1)}
+            {section[0].toUpperCase() + section.slice(1)}
           </button>
         ))}
       </div>
 
       {tab === 'overview' && (
         <div className="finance-overview-grid">
-          {/* Category Breakdown */}
-          <div className="card animate-fade-in-up stagger-4">
-            <div className="card-header">
-              <h2 className="card-title">Burn by Category</h2>
-            </div>
+          <div className="card">
+            <div className="card-header"><h2 className="card-title">Expenses by Category</h2></div>
             <div className="category-breakdown-list">
-              {Object.keys(expenseByCategory).length === 0 ? (
-                <p style={{ color: 'var(--evo-text-secondary)', padding: 'var(--space-4)' }}>No expenses recorded yet.</p>
-              ) : (
-                Object.entries(expenseByCategory).map(([cat, amount]) => {
-                  const pct = totalExpenses > 0 ? Math.round((amount / totalExpenses) * 100) : 0;
-                  return (
-                    <div key={cat} className="category-row">
-                      <div className="category-row-header">
-                        <span className="category-row-title">
-                          {categoryEmojis[cat] || '📌'} {cat.charAt(0).toUpperCase() + cat.slice(1)}
-                        </span>
-                        <span className="category-row-amount">₹{amount.toLocaleString()} ({pct}%)</span>
-                      </div>
-                      <div className="progress-bar sm">
-                        <div
-                          className="progress-bar-fill animated"
-                          style={{
-                            width: `${pct}%`,
-                            background: categoryColors[cat] || 'var(--evo-primary)',
-                          }}
-                        />
-                      </div>
+              {Object.entries(expenseByCategory).length === 0 ? (
+                <p className="finance-empty">No expenses yet. Add one to start tracking.</p>
+              ) : Object.entries(expenseByCategory).map(([category, amount]) => {
+                const key = category as ExpenseCategory;
+                const percent = totalExpenses > 0 ? Math.round(((amount || 0) / totalExpenses) * 100) : 0;
+                return (
+                  <div key={category} className="category-row">
+                    <div className="category-row-header">
+                      <span className="category-row-title">{categoryEmojis[key] || '📌'} {category}</span>
+                      <span className="category-row-amount">₹{(amount || 0).toLocaleString()} · {percent}%</span>
                     </div>
-                  );
-                })
-              )}
+                    <div className="progress-bar sm"><div className="progress-bar-fill animated" style={{ width: `${percent}%`, background: categoryColors[key] || 'var(--evo-primary)' }} /></div>
+                  </div>
+                );
+              })}
             </div>
           </div>
-
-          {/* Recent Outflow */}
-          <div className="card animate-fade-in-up stagger-5">
+          <div className="card">
             <div className="card-header">
-              <h2 className="card-title">Recent Transactions</h2>
-              <span className="card-action" onClick={() => setTab('expenses')} style={{ cursor: 'pointer' }}>
-                All ({expenses.length}) →
-              </span>
+              <h2 className="card-title">Recent Expenses</h2>
+              <button className="btn btn-secondary sm" onClick={() => setTab('expenses')}>View all →</button>
             </div>
-            <div className="recent-transactions-list">
-              {expenses.length === 0 ? (
-                <p style={{ color: 'var(--evo-text-secondary)', padding: 'var(--space-4)' }}>No recent transactions.</p>
-              ) : (
-                expenses.slice(0, 5).map(exp => (
-                  <div key={exp.id} className="transaction-item">
-                    <span className="transaction-icon" style={{ background: `${categoryColors[exp.category] || '#2997FF'}22` }}>
-                      {categoryEmojis[exp.category] || '📌'}
-                    </span>
-                    <div className="transaction-info">
-                      <span className="transaction-desc">{exp.description}</span>
-                      <span className="transaction-date">
-                        {new Date(exp.date).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })}
-                        {' • '}{exp.category}
-                      </span>
-                    </div>
-                    <span className="transaction-amount expense">-₹{exp.amount.toLocaleString()}</span>
-                  </div>
-                ))
-              )}
-            </div>
+            <FinanceRows expenses={expenses.slice(0, 5)} onDelete={removeExpense} />
           </div>
         </div>
       )}
 
       {tab === 'expenses' && (
-        <div className="card animate-fade-in-up">
+        <div className="card">
           <div className="card-header">
-            <h2 className="card-title">All Logged Expenses</h2>
-            <button className="btn btn-secondary sm" onClick={() => setShowModal(true)}>+ Add Entry</button>
+            <h2 className="card-title">Expenses</h2>
+            <button className="btn btn-primary sm" onClick={() => setModal('expense')}>+ Add Expense</button>
           </div>
-          <div className="finance-table">
-            {expenses.length === 0 ? (
-              <p style={{ color: 'var(--evo-text-secondary)', padding: 'var(--space-4)' }}>No expenses recorded yet.</p>
-            ) : (
-              expenses.map(exp => (
-                <div key={exp.id} className="finance-row">
-                  <span className="finance-row-icon" style={{ background: `${categoryColors[exp.category] || '#2997FF'}22` }}>
-                    {categoryEmojis[exp.category] || '📌'}
-                  </span>
-                  <div className="finance-row-info">
-                    <span className="finance-row-desc">{exp.description}</span>
-                    <span className="finance-row-date">
-                      {new Date(exp.date).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })}
-                      {' • '}{exp.category}
-                    </span>
-                  </div>
-                  <span className="finance-row-amount expense">-₹{exp.amount.toLocaleString()}</span>
-                </div>
-              ))
-            )}
-          </div>
+          <FinanceRows expenses={expenses} onDelete={removeExpense} />
         </div>
       )}
 
       {tab === 'income' && (
-        <div className="card animate-fade-in-up">
+        <div className="card">
           <div className="card-header">
-            <h2 className="card-title">Inflow Sources</h2>
+            <h2 className="card-title">Income</h2>
+            <button className="btn btn-primary sm" onClick={() => setModal('income')}>+ Add Income</button>
           </div>
-          <div className="finance-table">
-            {incomes.length === 0 ? (
-              <p style={{ color: 'var(--evo-text-secondary)', padding: 'var(--space-4)' }}>No income entries found.</p>
-            ) : (
-              incomes.map((inc: any) => (
-                <div key={inc.id} className="finance-row">
-                  <span className="finance-row-icon" style={{ background: 'rgba(0, 230, 118, 0.1)' }}>💵</span>
+          {incomes.length === 0 ? <p className="finance-empty">No income yet. Add a source to see it here.</p> : (
+            <div className="finance-table">
+              {incomes.map(income => (
+                <div key={income.id} className="finance-row">
+                  <span className="finance-row-icon income-icon">💵</span>
                   <div className="finance-row-info">
-                    <span className="finance-row-desc">{inc.source}</span>
-                    <span className="finance-row-date">
-                      {new Date(inc.date).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })}
-                      {' • '}{inc.category}
-                    </span>
+                    <span className="finance-row-desc">{income.source}</span>
+                    <span className="finance-row-date">{new Date(income.date).toLocaleDateString('en-IN')} · {income.category}</span>
                   </div>
-                  <span className="finance-row-amount income">+₹{Number(inc.amount).toLocaleString()}</span>
+                  <span className="finance-row-amount income">+₹{Number(income.amount).toLocaleString()}</span>
+                  <button className="finance-delete-button" onClick={() => void removeIncome(income)} aria-label={`Delete income ${income.source}`} title="Delete income">Delete</button>
                 </div>
-              ))
-            )}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
       {tab === 'savings' && (
-        <div className="card animate-fade-in-up">
+        <div className="card">
           <div className="card-header">
-            <h2 className="card-title">Emergency & Venture Runway</h2>
+            <h2 className="card-title">Savings Goals</h2>
+            <button className="btn btn-primary sm" onClick={() => setModal('savings')}>+ Add Savings Goal</button>
           </div>
-          <div className="savings-goals-list">
-            {savingsGoals.length === 0 ? (
-              <p style={{ color: 'var(--evo-text-secondary)', padding: 'var(--space-4)' }}>No savings goals created yet.</p>
-            ) : (
-              savingsGoals.map((sg: any) => {
-                const cur = Number(sg.currentAmount) || 0;
-                const tgt = Number(sg.targetAmount) || 100000;
-                const remaining = Math.max(0, tgt - cur);
-                const pct = tgt > 0 ? Math.round((cur / tgt) * 100) : 0;
-                const daysLeft = Math.max(1, Math.ceil((new Date(sg.deadline).getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
-                const weeklyTarget = Math.ceil(remaining / Math.max(1, daysLeft / 7));
-                const monthlyTarget = Math.ceil(remaining / Math.max(1, daysLeft / 30));
-
+          {savingsGoals.length === 0 ? <p className="finance-empty">No savings goals yet. Set a target to start building toward it.</p> : (
+            <div className="savings-goals-list">
+              {savingsGoals.map(goal => {
+                const current = Number(goal.currentAmount) || 0;
+                const target = Number(goal.targetAmount) || 0;
+                const remaining = Math.max(0, target - current);
+                const progress = target ? Math.min(100, Math.round((current / target) * 100)) : 0;
+                const daysLeft = Math.max(0, Math.ceil((new Date(`${goal.deadline}T00:00:00`).getTime() - Date.now()) / 86400000));
                 return (
-                  <div key={sg.id} className="savings-detail-card card">
-                    <h3 style={{ fontSize: 'var(--text-lg)', fontWeight: 700, marginBottom: 'var(--space-4)' }}>
-                      {sg.title}
-                    </h3>
+                  <div key={goal.id} className="savings-detail-card card">
+                    <div className="savings-goal-header">
+                      <h3 className="savings-goal-name">{goal.title}</h3>
+                      <div className="savings-goal-actions">
+                        <span className="savings-goal-percent">{progress}%</span>
+                        <button className="finance-delete-button" onClick={() => void removeSavingsGoal(goal)} aria-label={`Delete savings goal ${goal.title}`} title="Delete savings goal">Delete</button>
+                      </div>
+                    </div>
                     <div className="savings-detail-amounts">
-                      <span className="savings-current" style={{ fontSize: 'var(--text-2xl)' }}>₹{cur.toLocaleString()}</span>
-                      <span className="savings-target">/ ₹{tgt.toLocaleString()}</span>
+                      <span className="savings-current">₹{current.toLocaleString()}</span>
+                      <span className="savings-target">of ₹{target.toLocaleString()}</span>
                     </div>
-                    <div className="progress-bar lg" style={{ margin: 'var(--space-4) 0' }}>
-                      <div className="progress-bar-fill green animated" style={{ width: `${pct}%` }} />
-                    </div>
-                    <div className="savings-breakdown" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
-                      <div className="savings-breakdown-item">
-                        <span className="savings-breakdown-label">Remaining Gap</span>
-                        <span className="savings-breakdown-value">₹{remaining.toLocaleString()}</span>
-                      </div>
-                      <div className="savings-breakdown-item">
-                        <span className="savings-breakdown-label">Days to Target</span>
-                        <span className="savings-breakdown-value">{daysLeft}</span>
-                      </div>
-                      <div className="savings-breakdown-item">
-                        <span className="savings-breakdown-label">Required / Week</span>
-                        <span className="savings-breakdown-value">₹{weeklyTarget.toLocaleString()}</span>
-                      </div>
-                      <div className="savings-breakdown-item">
-                        <span className="savings-breakdown-label">Required / Month</span>
-                        <span className="savings-breakdown-value">₹{monthlyTarget.toLocaleString()}</span>
-                      </div>
+                    <div className="progress-bar lg"><div className="progress-bar-fill green animated" style={{ width: `${progress}%` }} /></div>
+                    <div className="savings-breakdown">
+                      <div className="savings-breakdown-item"><span className="savings-breakdown-label">Left to save</span><span className="savings-breakdown-value">₹{remaining.toLocaleString()}</span></div>
+                      <div className="savings-breakdown-item"><span className="savings-breakdown-label">Target date</span><span className="savings-breakdown-value">{new Date(`${goal.deadline}T00:00:00`).toLocaleDateString('en-IN')}</span></div>
+                      <div className="savings-breakdown-item"><span className="savings-breakdown-label">Days left</span><span className="savings-breakdown-value">{daysLeft}</span></div>
                     </div>
                   </div>
                 );
-              })
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {modal && (
+        <div className="modal-overlay" onClick={() => !saving && setModal(null)}>
+          <div className="modal" onClick={event => event.stopPropagation()}>
+            <div className="modal-header">
+              <h2 className="modal-title">{modal === 'expense' ? 'Add Expense' : modal === 'income' ? 'Add Income' : 'Add Savings Goal'}</h2>
+              <button className="modal-close" onClick={() => !saving && setModal(null)} aria-label="Close">✕</button>
+            </div>
+
+            {modal === 'expense' && (
+              <form onSubmit={saveExpense}>
+                <div className="modal-body">
+                  <div className="form-group"><label className="form-label" htmlFor="expense-amount">Amount (₹) *</label><input id="expense-amount" className="form-input" type="number" min="0.01" step="0.01" value={expenseForm.amount} onChange={event => setExpenseForm({ ...expenseForm, amount: event.target.value })} required /></div>
+                  <div className="form-group"><label className="form-label" htmlFor="expense-category">Category</label><select id="expense-category" className="form-input" value={expenseForm.category} onChange={event => setExpenseForm({ ...expenseForm, category: event.target.value as ExpenseCategory })}>{Object.entries(categoryEmojis).map(([key, emoji]) => <option key={key} value={key}>{emoji} {key[0].toUpperCase() + key.slice(1)}</option>)}</select></div>
+                  <div className="form-group"><label className="form-label" htmlFor="expense-description">Description</label><input id="expense-description" className="form-input" value={expenseForm.description} onChange={event => setExpenseForm({ ...expenseForm, description: event.target.value })} placeholder="What was it for?" /></div>
+                  <div className="form-group"><label className="form-label" htmlFor="expense-date">Date</label><input id="expense-date" className="form-input" type="date" value={expenseForm.date} onChange={event => setExpenseForm({ ...expenseForm, date: event.target.value })} required /></div>
+                </div>
+                <div className="modal-footer"><button type="button" className="btn btn-secondary" onClick={() => setModal(null)}>Cancel</button><button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Saving…' : 'Save Expense'}</button></div>
+              </form>
+            )}
+
+            {modal === 'income' && (
+              <form onSubmit={saveIncome}>
+                <div className="modal-body">
+                  <div className="form-group"><label className="form-label" htmlFor="income-amount">Amount (₹) *</label><input id="income-amount" className="form-input" type="number" min="0.01" step="0.01" value={incomeForm.amount} onChange={event => setIncomeForm({ ...incomeForm, amount: event.target.value })} required /></div>
+                  <div className="form-group"><label className="form-label" htmlFor="income-source">Source *</label><input id="income-source" className="form-input" value={incomeForm.source} onChange={event => setIncomeForm({ ...incomeForm, source: event.target.value })} placeholder="Salary, freelance, interest…" required /></div>
+                  <div className="form-group"><label className="form-label" htmlFor="income-category">Category</label><input id="income-category" className="form-input" value={incomeForm.category} onChange={event => setIncomeForm({ ...incomeForm, category: event.target.value })} /></div>
+                  <div className="form-group"><label className="form-label" htmlFor="income-date">Date</label><input id="income-date" className="form-input" type="date" value={incomeForm.date} onChange={event => setIncomeForm({ ...incomeForm, date: event.target.value })} required /></div>
+                </div>
+                <div className="modal-footer"><button type="button" className="btn btn-secondary" onClick={() => setModal(null)}>Cancel</button><button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Saving…' : 'Save Income'}</button></div>
+              </form>
+            )}
+
+            {modal === 'savings' && (
+              <form onSubmit={saveSavingsGoal}>
+                <div className="modal-body">
+                  <div className="form-group"><label className="form-label" htmlFor="savings-title">Goal name *</label><input id="savings-title" className="form-input" value={savingsForm.title} onChange={event => setSavingsForm({ ...savingsForm, title: event.target.value })} placeholder="Emergency fund, new laptop…" required /></div>
+                  <div className="form-group"><label className="form-label" htmlFor="savings-target">Target amount (₹) *</label><input id="savings-target" className="form-input" type="number" min="0.01" step="0.01" value={savingsForm.targetAmount} onChange={event => setSavingsForm({ ...savingsForm, targetAmount: event.target.value })} required /></div>
+                  <div className="form-group"><label className="form-label" htmlFor="savings-current">Already saved (₹)</label><input id="savings-current" className="form-input" type="number" min="0" step="0.01" value={savingsForm.currentAmount} onChange={event => setSavingsForm({ ...savingsForm, currentAmount: event.target.value })} /></div>
+                  <div className="form-group"><label className="form-label" htmlFor="savings-deadline">Target date *</label><input id="savings-deadline" className="form-input" type="date" min={today()} value={savingsForm.deadline} onChange={event => setSavingsForm({ ...savingsForm, deadline: event.target.value })} required /></div>
+                </div>
+                <div className="modal-footer"><button type="button" className="btn btn-secondary" onClick={() => setModal(null)}>Cancel</button><button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Saving…' : 'Create Savings Goal'}</button></div>
+              </form>
             )}
           </div>
         </div>
       )}
+    </div>
+  );
+}
 
-      {/* Log Expense Modal */}
-      {showModal && (
-        <div className="modal-overlay" onClick={() => setShowModal(false)}>
-          <div className="modal" onClick={e => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2 className="modal-title">Log Expense</h2>
-              <button className="modal-close" onClick={() => setShowModal(false)}>✕</button>
-            </div>
-            <form onSubmit={handleLogExpense}>
-              <div className="modal-body">
-                <div className="auth-form">
-                  <div className="form-group">
-                    <label className="form-label">Amount (₹) *</label>
-                    <input
-                      className="form-input"
-                      type="number"
-                      placeholder="e.g., 450"
-                      value={formData.amount}
-                      onChange={e => setFormData({ ...formData, amount: Number(e.target.value) })}
-                      required
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Category</label>
-                    <select
-                      className="form-input"
-                      value={formData.category}
-                      onChange={e => setFormData({ ...formData, category: e.target.value })}
-                    >
-                      {Object.entries(categoryEmojis).map(([key, emoji]) => (
-                        <option key={key} value={key}>{emoji} {key.charAt(0).toUpperCase() + key.slice(1)}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Description</label>
-                    <input
-                      className="form-input"
-                      placeholder="e.g., Books & Courses, Lunch, AWS Hosting"
-                      value={formData.description}
-                      onChange={e => setFormData({ ...formData, description: e.target.value })}
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Date</label>
-                    <input
-                      className="form-input"
-                      type="date"
-                      value={formData.date}
-                      onChange={e => setFormData({ ...formData, date: e.target.value })}
-                    />
-                  </div>
-                </div>
-              </div>
-              <div className="modal-footer">
-                <button type="button" className="btn btn-secondary" onClick={() => setShowModal(false)}>Cancel</button>
-                <button type="submit" className="btn btn-primary">Save Expense</button>
-              </div>
-            </form>
+function FinanceRows({ expenses, onDelete }: { expenses: Expense[]; onDelete: (expense: Expense) => void }) {
+  if (expenses.length === 0) return <p className="finance-empty">No expenses yet.</p>;
+  return (
+    <div className="finance-table">
+      {expenses.map(expense => (
+        <div key={expense.id} className="finance-row">
+          <span className="finance-row-icon" style={{ background: `${categoryColors[expense.category] || '#0066FF'}22` }}>{categoryEmojis[expense.category] || '📌'}</span>
+          <div className="finance-row-info">
+            <span className="finance-row-desc">{expense.description}</span>
+            <span className="finance-row-date">{new Date(expense.date).toLocaleDateString('en-IN')} · {expense.category}</span>
           </div>
+          <span className="finance-row-amount expense">−₹{Number(expense.amount).toLocaleString()}</span>
+          <button className="finance-delete-button" onClick={() => void onDelete(expense)} aria-label={`Delete expense ${expense.description}`} title="Delete expense">Delete</button>
         </div>
-      )}
+      ))}
     </div>
   );
 }

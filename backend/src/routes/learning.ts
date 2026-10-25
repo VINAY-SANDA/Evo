@@ -49,8 +49,12 @@ router.get('/subjects', async (_req: Request, res: Response) => {
 router.get('/subjects/:id/topics', async (req: Request, res: Response) => {
   try {
     const result = await query(
-      'SELECT * FROM learning_topics WHERE subject_id = $1 ORDER BY created_at ASC',
-      [req.params.id]
+      `SELECT t.*
+       FROM learning_topics t
+       JOIN learning_subjects s ON s.id = t.subject_id
+       WHERE t.subject_id = $1 AND s.user_id = $2
+       ORDER BY t.created_at ASC`,
+      [req.params.id, DEFAULT_USER_ID]
     );
     res.json({ topics: result.rows.map(mapTopic) });
   } catch (error) {
@@ -63,7 +67,13 @@ router.get('/subjects/:id/topics', async (req: Request, res: Response) => {
 router.patch('/topics/:id', async (req: Request, res: Response) => {
   try {
     const { name, status, difficulty, timeSpentMinutes } = req.body;
-    const existing = await query('SELECT * FROM learning_topics WHERE id = $1', [req.params.id]);
+    const existing = await query(
+      `SELECT t.*
+       FROM learning_topics t
+       JOIN learning_subjects s ON s.id = t.subject_id
+       WHERE t.id = $1 AND s.user_id = $2`,
+      [req.params.id, DEFAULT_USER_ID]
+    );
     if (existing.rows.length === 0) {
       return res.status(404).json({ error: 'Topic not found' });
     }
@@ -77,14 +87,22 @@ router.patch('/topics/:id', async (req: Request, res: Response) => {
     const updated = await query(
       `UPDATE learning_topics
        SET name = $1, status = $2, difficulty = $3, time_spent_minutes = $4
-       WHERE id = $5
+       WHERE id = $5 AND EXISTS (
+         SELECT 1 FROM learning_subjects s
+         WHERE s.id = learning_topics.subject_id AND s.user_id = $6
+       )
        RETURNING *`,
-      [newName, newStatus, newDifficulty, newTime, req.params.id]
+      [newName, newStatus, newDifficulty, newTime, req.params.id, DEFAULT_USER_ID]
     );
 
     // Recalculate subject progress
     const subjectId = current.subject_id;
-    const allTopics = await query('SELECT * FROM learning_topics WHERE subject_id = $1', [subjectId]);
+    const allTopics = await query(
+      `SELECT t.* FROM learning_topics t
+       JOIN learning_subjects s ON s.id = t.subject_id
+       WHERE t.subject_id = $1 AND s.user_id = $2`,
+      [subjectId, DEFAULT_USER_ID]
+    );
     const totalCount = allTopics.rows.length;
     const completedCount = allTopics.rows.filter((t: any) => t.status === 'completed').length;
     const progress = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
@@ -93,14 +111,65 @@ router.patch('/topics/:id', async (req: Request, res: Response) => {
     await query(
       `UPDATE learning_subjects
        SET total_topics = $1, completed_topics = $2, progress = $3, total_time_minutes = $4
-       WHERE id = $5`,
-      [totalCount, completedCount, progress, totalTime, subjectId]
+       WHERE id = $5 AND user_id = $6`,
+      [totalCount, completedCount, progress, totalTime, subjectId, DEFAULT_USER_ID]
     );
 
     res.json(mapTopic(updated.rows[0]));
   } catch (error) {
     console.error('Error updating topic:', error);
     res.status(500).json({ error: 'Failed to update topic' });
+  }
+});
+
+router.delete('/subjects/:id', async (req: Request, res: Response) => {
+  try {
+    const result = await query(
+      'DELETE FROM learning_subjects WHERE id = $1 AND user_id = $2 RETURNING id',
+      [req.params.id, DEFAULT_USER_ID]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Learning track not found' });
+    res.status(204).send();
+  } catch (error) {
+    console.error('Error deleting learning track:', error);
+    res.status(500).json({ error: 'Failed to delete learning track' });
+  }
+});
+
+router.delete('/topics/:id', async (req: Request, res: Response) => {
+  try {
+    const result = await query(
+      `DELETE FROM learning_topics t
+       USING learning_subjects s
+       WHERE t.id = $1 AND t.subject_id = s.id AND s.user_id = $2
+       RETURNING t.id, t.subject_id as "subjectId"`,
+      [req.params.id, DEFAULT_USER_ID]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Topic not found' });
+
+    const subjectId = result.rows[0].subjectId;
+    const stats = await query(
+      `SELECT COUNT(*)::int as total,
+              COUNT(*) FILTER (WHERE status = 'completed')::int as completed,
+              COALESCE(SUM(time_spent_minutes), 0)::int as total_time
+       FROM learning_topics WHERE subject_id = $1`,
+      [subjectId]
+    );
+    const total = Number(stats.rows[0]?.total) || 0;
+    const completed = Number(stats.rows[0]?.completed) || 0;
+    const totalTime = Number(stats.rows[0]?.total_time) || 0;
+    const progress = total > 0 ? Math.round((completed / total) * 100) : 0;
+    await query(
+      `UPDATE learning_subjects
+       SET total_topics = $1, completed_topics = $2, progress = $3, total_time_minutes = $4
+       WHERE id = $5 AND user_id = $6`,
+      [total, completed, progress, totalTime, subjectId, DEFAULT_USER_ID]
+    );
+
+    res.status(204).send();
+  } catch (error) {
+    console.error('Error deleting learning topic:', error);
+    res.status(500).json({ error: 'Failed to delete learning topic' });
   }
 });
 
@@ -133,15 +202,18 @@ router.post('/subjects/:id/topics', async (req: Request, res: Response) => {
     const subjectId = req.params.id;
     const result = await query(
       `INSERT INTO learning_topics (subject_id, name, status, difficulty, time_spent_minutes)
-       VALUES ($1, $2, 'not_started', $3, $4)
+       SELECT $1, $2, 'not_started', $3, $4
+       WHERE EXISTS (SELECT 1 FROM learning_subjects WHERE id = $1 AND user_id = $5)
        RETURNING *`,
-      [subjectId, name, difficulty || 'medium', timeSpentMinutes || 0]
+      [subjectId, name, difficulty || 'medium', timeSpentMinutes || 0, DEFAULT_USER_ID]
     );
+
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Subject not found' });
 
     // Update subject total topics
     await query(
-      'UPDATE learning_subjects SET total_topics = total_topics + 1 WHERE id = $1',
-      [subjectId]
+      'UPDATE learning_subjects SET total_topics = total_topics + 1 WHERE id = $1 AND user_id = $2',
+      [subjectId, DEFAULT_USER_ID]
     );
 
     res.status(201).json(mapTopic(result.rows[0]));

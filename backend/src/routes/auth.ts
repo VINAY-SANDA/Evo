@@ -2,26 +2,33 @@ import { Router, Request, Response } from 'express';
 import dotenv from 'dotenv';
 import { query } from '../db/connection.js';
 import { DEFAULT_USER_ID } from '../db/userHelper.js';
+import { createOwnerSessionToken, verifyOwnerSessionToken } from '../middleware/auth.js';
 
 dotenv.config();
 
 const router = Router();
 
 // Master access key for Vinay (customizable via environment variable)
-const MASTER_PASSCODE = process.env.EVO_MASTER_PASSCODE || process.env.MASTER_PASSWORD || 'Vinay@2026';
+const MASTER_PASSCODE = process.env.EVO_MASTER_PASSCODE
+  || process.env.MASTER_PASSWORD
+  || (process.env.NODE_ENV === 'production' ? undefined : 'Vinay@2026');
 const MASTER_EMAIL = process.env.EVO_MASTER_EMAIL || 'vinay@example.com';
 
 // ── Login Endpoint ──
 router.post('/login', async (req: Request, res: Response) => {
-  const { passcode, email } = req.body;
+  const { passcode, email } = req.body || {};
 
   if (!passcode) {
     return res.status(400).json({ error: 'Passcode is required' });
   }
 
+  if (!MASTER_PASSCODE || !process.env.EVO_AUTH_SECRET) {
+    return res.status(503).json({ error: 'EVO authentication is not configured on the server.' });
+  }
+
   // Validate only for Vinay
-  const isEmailMatch = !email || email.trim().toLowerCase() === MASTER_EMAIL.toLowerCase();
-  const isPasscodeMatch = passcode.trim() === MASTER_PASSCODE;
+  const isEmailMatch = typeof email !== 'string' || email.trim().toLowerCase() === MASTER_EMAIL.toLowerCase();
+  const isPasscodeMatch = typeof passcode === 'string' && passcode.trim() === MASTER_PASSCODE;
 
   if (!isPasscodeMatch || !isEmailMatch) {
     return res.status(401).json({
@@ -53,18 +60,15 @@ router.post('/login', async (req: Request, res: Response) => {
     // In-memory fallback
   }
 
-  // Simple token format for single-user environment: base64 encoded user info + timestamp
-  const authToken = Buffer.from(JSON.stringify({
-    userId: user.id,
-    email: user.email,
-    authTime: Date.now(),
-    role: 'owner',
-  })).toString('base64');
+  const authToken = createOwnerSessionToken(user);
+  if (!authToken) {
+    return res.status(503).json({ error: 'EVO authentication is not configured on the server.' });
+  }
 
   res.json({
     success: true,
     message: 'Access granted. Personal operating system unlocked.',
-    token: `evo_sec_${authToken}`,
+    token: authToken,
     user,
   });
 });
@@ -76,25 +80,19 @@ router.get('/verify', (req: Request, res: Response) => {
     return res.status(401).json({ authenticated: false, error: 'No active session token' });
   }
 
-  try {
-    const rawToken = authHeader.replace('Bearer evo_sec_', '');
-    const payload = JSON.parse(Buffer.from(rawToken, 'base64').toString('utf8'));
-
-    if (payload.role !== 'owner' || payload.userId !== DEFAULT_USER_ID) {
-      return res.status(401).json({ authenticated: false, error: 'Session invalid' });
-    }
-
-    res.json({
-      authenticated: true,
-      user: {
-        id: payload.userId,
-        email: payload.email,
-        name: 'Vinay',
-      },
-    });
-  } catch {
-    res.status(401).json({ authenticated: false, error: 'Malformed session token' });
+  const session = verifyOwnerSessionToken(authHeader.replace(/^Bearer\s+/i, ''));
+  if (!session) {
+    return res.status(401).json({ authenticated: false, error: 'Session is invalid or expired' });
   }
+
+  res.json({
+    authenticated: true,
+    user: {
+      id: session.userId,
+      email: session.email,
+      name: session.name,
+    },
+  });
 });
 
 export default router;

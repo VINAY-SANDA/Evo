@@ -119,8 +119,8 @@
 }
 
 .ai-quick-btn:hover {
-  background: rgba(41, 151, 255, 0.08);
-  border-color: rgba(41, 151, 255, 0.35);
+  background: rgba(0, 102, 255, 0.08);
+  border-color: rgba(0, 102, 255, 0.35);
   color: var(--evo-primary);
   transform: translateY(-1px);
 }

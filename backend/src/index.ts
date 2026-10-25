@@ -18,6 +18,7 @@ import mcpRouter from './routes/mcp.js';
 import authRouter from './routes/auth.js';
 import { testConnection, query } from './db/connection.js';
 import { DEFAULT_USER_ID, ensureDefaultUser } from './db/userHelper.js';
+import { authenticateApiRequest, authenticateRequest } from './middleware/auth.js';
 
 dotenv.config();
 
@@ -33,21 +34,19 @@ app.use(cors({
   origin: (origin, callback) => {
     if (!origin) return callback(null, true);
     if (
-      allowedOrigins.includes('*') ||
       allowedOrigins.includes(origin) ||
       origin.endsWith('.vercel.app') ||
-      origin.includes('google.com') ||
-      origin.includes('googleusercontent.com')
+      origin.endsWith('.google.com') ||
+      origin.endsWith('.googleusercontent.com')
     ) {
       return callback(null, true);
     }
-    return callback(null, true);
+    return callback(null, false);
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-requested-with'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'mcp-session-id', 'x-requested-with'],
 }));
-app.options('*', cors());
 app.use(express.json());
 
 // ── Health Check ──
@@ -84,6 +83,7 @@ app.get('/api/health', (_req: Request, res: Response) => {
 
 // ── Route Mounts ──
 app.use('/api/auth', authRouter);
+app.use('/api', authenticateApiRequest);
 app.use('/api/goals', goalsRouter);
 app.use('/api/tasks', tasksRouter);
 app.use('/api/habits', habitsRouter);
@@ -96,6 +96,8 @@ app.use('/api/progress', progressRouter);
 app.use('/api/reviews', reviewsRouter);
 
 // ── MCP Server Endpoints (for Google Gemini & Remote AI Clients) ──
+app.use('/mcp', authenticateRequest);
+app.use('/sse', authenticateRequest);
 app.use('/mcp', mcpRouter);
 app.use('/api/mcp', mcpRouter);
 app.use('/sse', mcpRouter);
@@ -110,24 +112,22 @@ app.post('/api/ai/chat', async (req: Request, res: Response) => {
   let storedMemories: string[] = [];
   let monthlySavings = { income: 0, expenses: 0, net: 0 };
   try {
-    const goalsRes = await query('SELECT title, progress, deadline FROM goals WHERE user_id = $1 AND status = $2 LIMIT 5', [DEFAULT_USER_ID, 'active']);
+    const [goalsRes, tasksRes, habitsRes, memsRes, finRes] = await Promise.all([
+      query('SELECT title, progress, deadline FROM goals WHERE user_id = $1 AND status = $2 LIMIT 5', [DEFAULT_USER_ID, 'active']),
+      query('SELECT title, status, priority FROM tasks WHERE user_id = $1 AND due_date = CURRENT_DATE LIMIT 5', [DEFAULT_USER_ID]),
+      query('SELECT name, current_streak FROM habits WHERE user_id = $1 AND active = true LIMIT 5', [DEFAULT_USER_ID]),
+      query('SELECT text FROM memories WHERE user_id = $1 ORDER BY importance DESC LIMIT 5', [DEFAULT_USER_ID]),
+      query(
+        `SELECT
+           COALESCE((SELECT SUM(amount) FROM incomes WHERE user_id = $1), 0) as income,
+           COALESCE((SELECT SUM(amount) FROM expenses WHERE user_id = $1), 0) as expense`,
+        [DEFAULT_USER_ID]
+      ),
+    ]);
     activeGoals = goalsRes.rows.map((g: any) => ({ title: g.title, progress: Number(g.progress) || 0, deadline: g.deadline }));
-
-    const tasksRes = await query('SELECT title, status, priority FROM tasks WHERE user_id = $1 AND due_date = CURRENT_DATE LIMIT 5', [DEFAULT_USER_ID]);
     todayTasks = tasksRes.rows.map((t: any) => ({ title: t.title, status: t.status, priority: t.priority }));
-
-    const habitsRes = await query('SELECT name, current_streak FROM habits WHERE user_id = $1 AND active = true LIMIT 5', [DEFAULT_USER_ID]);
     userHabits = habitsRes.rows.map((h: any) => ({ name: h.name, currentStreak: Number(h.current_streak) || 0, completedToday: false }));
-
-    const memsRes = await query('SELECT text FROM memories WHERE user_id = $1 ORDER BY importance DESC LIMIT 5', [DEFAULT_USER_ID]);
     storedMemories = memsRes.rows.map((m: any) => m.text);
-
-    const finRes = await query(
-      `SELECT
-         COALESCE((SELECT SUM(amount) FROM incomes WHERE user_id = $1), 0) as income,
-         COALESCE((SELECT SUM(amount) FROM expenses WHERE user_id = $1), 0) as expense`,
-      [DEFAULT_USER_ID]
-    );
     const inc = Number(finRes.rows[0]?.income) || 0;
     const exp = Number(finRes.rows[0]?.expense) || 0;
     monthlySavings = { income: inc, expenses: exp, net: inc - exp };
@@ -356,15 +356,19 @@ app.get('/api/dashboard', async (_req: Request, res: Response) => {
   }
 });
 
-// ── Start Server ──
-app.listen(PORT, async () => {
-  console.log(`🚀 EVO Backend Server online at http://localhost:${PORT}`);
-  console.log(`📋 API docs available at http://localhost:${PORT}/api/health`);
-  const isDbConnected = await testConnection();
-  if (isDbConnected) {
-    console.log(`🐘 PostgreSQL: Connected & active`);
-    await ensureDefaultUser();
-  } else {
-    console.log(`💡 PostgreSQL: Not detected (running with in-memory persistence)`);
-  }
-});
+export { app };
+
+// Keep imports side-effect free so the complete HTTP app can be exercised by tests.
+if (process.env.NODE_ENV !== 'test') {
+  app.listen(PORT, async () => {
+    console.log(`🚀 EVO Backend Server online at http://localhost:${PORT}`);
+    console.log(`📋 API docs available at http://localhost:${PORT}/api/health`);
+    const isDbConnected = await testConnection();
+    if (isDbConnected) {
+      console.log(`🐘 PostgreSQL: Connected & active`);
+      await ensureDefaultUser();
+    } else {
+      console.log(`💡 PostgreSQL: Not detected (running with in-memory persistence)`);
+    }
+  });
+}

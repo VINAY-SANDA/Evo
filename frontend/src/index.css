@@ -7,72 +7,75 @@
 
 /* ── CSS Custom Properties ── */
 :root {
-  /* Brand Colors — Apple Pro Blue & Titanium */
-  --evo-primary: #2997FF;
-  --evo-primary-light: #70B6FF;
-  --evo-primary-dark: #0071E3;
-  --evo-primary-glow: rgba(41, 151, 255, 0.22);
+  /* Vyra Labs palette: black surfaces, blue actions, green success */
+  --evo-primary: #0066FF;
+  --evo-primary-light: #4D94FF;
+  --evo-primary-dark: #0052CC;
+  --evo-primary-glow: rgba(0, 102, 255, 0.2);
 
-  --evo-accent: #E5E5EA;
-  --evo-accent-light: #FFFFFF;
-  --evo-accent-dark: #A1A1A6;
-  --evo-accent-glow: rgba(255, 255, 255, 0.12);
+  --evo-accent: #00C853;
+  --evo-accent-light: #35D977;
+  --evo-accent-dark: #00963E;
+  --evo-accent-glow: rgba(0, 200, 83, 0.16);
 
-  /* Status Colors — Apple Human Interface Guidelines */
-  --evo-success: #30D158;
-  --evo-success-light: #62E384;
-  --evo-success-dark: #24A143;
-  --evo-success-bg: rgba(48, 209, 88, 0.12);
+  /* Status Colors */
+  --evo-success: #00C853;
+  --evo-success-light: #35D977;
+  --evo-success-dark: #00963E;
+  --evo-success-bg: rgba(0, 200, 83, 0.12);
 
-  --evo-warning: #FF9F0A;
-  --evo-warning-light: #FFB340;
-  --evo-warning-dark: #C97700;
-  --evo-warning-bg: rgba(255, 159, 10, 0.12);
+  --evo-warning: #FBBF24;
+  --evo-warning-light: #FCD34D;
+  --evo-warning-dark: #D97706;
+  --evo-warning-bg: rgba(251, 191, 36, 0.13);
 
-  --evo-danger: #FF453A;
-  --evo-danger-light: #FF6961;
-  --evo-danger-dark: #D7261E;
-  --evo-danger-bg: rgba(255, 69, 58, 0.12);
+  --evo-danger: #E53935;
+  --evo-danger-light: #FF6B66;
+  --evo-danger-dark: #B71C1C;
+  --evo-danger-bg: rgba(229, 57, 53, 0.12);
 
-  --evo-info: #0A84FF;
-  --evo-info-light: #5EAEFF;
-  --evo-info-dark: #0060DF;
-  --evo-info-bg: rgba(10, 132, 255, 0.12);
+  --evo-info: #0066FF;
+  --evo-info-light: #4D94FF;
+  --evo-info-dark: #0052CC;
+  --evo-info-bg: rgba(0, 102, 255, 0.12);
 
-  /* Category Colors — Apple Palette */
-  --evo-career: #0A84FF;
-  --evo-learning: #5E5CE6;
-  --evo-finance: #30D158;
-  --evo-health: #FF453A;
-  --evo-personal: #FF9F0A;
-  --evo-project: #BF5AF2;
-  --evo-business: #64D2FF;
+  /* Category Colors */
+  --evo-career: #4D94FF;
+  --evo-learning: #0066FF;
+  --evo-finance: #00C853;
+  --evo-health: #E53935;
+  --evo-personal: #CCCCCC;
+  --evo-project: #0052CC;
+  --evo-business: #4D94FF;
 
-  /* Apple Pro Dark Theme Surface Colors (Space Black & Midnight Slate) */
-  --evo-bg-deep: #000000;
-  --evo-bg-base: #0B0C0E;
-  --evo-bg-surface: #141519;
-  --evo-bg-elevated: #1C1D23;
-  --evo-bg-overlay: #23252E;
-  --evo-bg-hover: #2B2D38;
-  --evo-bg-active: #343744;
+  /* Vyra Labs dark surfaces */
+  --evo-bg-deep: #0A0A0A;
+  --evo-bg-base: #101010;
+  --evo-bg-surface: #171717;
+  --evo-bg-elevated: #1A1A1A;
+  --evo-bg-overlay: #242424;
+  --evo-bg-hover: #2B2B2B;
+  --evo-bg-active: #353535;
+  --evo-bg-card: #171717;
 
-  /* Glass Materials — macOS Sonoma / Sequoia Frosted Glass */
-  --evo-glass: rgba(20, 21, 25, 0.76);
+  /* Soft glass surfaces */
+  --evo-glass: rgba(26, 26, 26, 0.88);
   --evo-glass-border: rgba(255, 255, 255, 0.08);
-  --evo-glass-hover: rgba(28, 29, 35, 0.84);
+  --evo-glass-hover: rgba(36, 36, 36, 0.94);
 
-  /* Typography Colors — Apple High-Legibility Scale */
-  --evo-text-primary: #F5F5F7;
-  --evo-text-secondary: #98989D;
-  --evo-text-tertiary: #636366;
-  --evo-text-disabled: #3A3A3C;
-  --evo-text-inverse: #000000;
+  /* High-legibility typography */
+  --evo-text-primary: #FFFFFF;
+  --evo-text-secondary: #CCCCCC;
+  --evo-text-tertiary: #A8A8A8;
+  --evo-text-muted: #808080;
+  --evo-text-disabled: #555555;
+  --evo-text-inverse: #FFFFFF;
 
-  /* Borders — Apple Hairline Subtlety */
-  --evo-border: rgba(255, 255, 255, 0.08);
-  --evo-border-subtle: rgba(255, 255, 255, 0.05);
-  --evo-border-strong: rgba(255, 255, 255, 0.16);
+  /* Borders */
+  --evo-border: rgba(255, 255, 255, 0.1);
+  --evo-border-subtle: rgba(255, 255, 255, 0.06);
+  --evo-border-strong: rgba(255, 255, 255, 0.18);
+  --evo-border-focus: rgba(0, 102, 255, 0.55);
 
   /* Optical Diffusion Shadows */
   --evo-shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.4);
@@ -369,6 +372,7 @@ input::placeholder, textarea::placeholder {
   flex: 1;
   display: flex;
   flex-direction: column;
+  min-width: 0;
   min-height: 100vh;
   margin-left: var(--sidebar-width);
   transition: margin-left var(--duration-base) var(--ease-out);
@@ -381,6 +385,7 @@ input::placeholder, textarea::placeholder {
 .app-content {
   flex: 1;
   padding: var(--space-8);
+  min-width: 0;
   max-width: var(--content-max-width);
   width: 100%;
   margin: 0 auto;
@@ -491,8 +496,8 @@ input::placeholder, textarea::placeholder {
 }
 
 .sidebar-link.active {
-  background: rgba(41, 151, 255, 0.12);
-  border: 1px solid rgba(41, 151, 255, 0.2);
+  background: var(--evo-primary-glow);
+  border: 1px solid rgba(0, 102, 255, 0.3);
   color: var(--evo-primary);
   font-weight: 600;
 }
@@ -887,7 +892,7 @@ input::placeholder, textarea::placeholder {
 }
 
 .badge-primary {
-  background: rgba(41, 151, 255, 0.12);
+  background: rgba(0, 102, 255, 0.12);
   color: var(--evo-primary);
 }
 
@@ -1282,7 +1287,7 @@ input::placeholder, textarea::placeholder {
 
 /* ── AI Insight Card ── */
 .ai-insight-card {
-  background: linear-gradient(135deg, rgba(41, 151, 255, 0.08), rgba(255, 255, 255, 0.02));
+  background: linear-gradient(135deg, rgba(0, 102, 255, 0.08), rgba(255, 255, 255, 0.02));
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: var(--radius-lg);
   padding: var(--space-5) var(--space-6);
@@ -1297,7 +1302,7 @@ input::placeholder, textarea::placeholder {
   right: -50%;
   width: 100%;
   height: 100%;
-  background: radial-gradient(circle, rgba(41, 151, 255, 0.06), transparent 70%);
+  background: radial-gradient(circle, rgba(0, 102, 255, 0.06), transparent 70%);
   pointer-events: none;
 }
 

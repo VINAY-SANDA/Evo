@@ -27,7 +27,7 @@ export default function LoginPage() {
     setIsSubmitting(true);
     setError(null);
 
-    const result = await login(passcode.trim(), email.trim());
+    const result = await login(passcode.trim(), email.trim(), rememberMe);
     setIsSubmitting(false);
 
     if (result.success) {

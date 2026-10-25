@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react';
 import type { Habit } from '../../types';
-import { getHabits, createHabit, toggleHabitComplete } from '../../services/api';
+import { archiveHabit, createHabit, deleteHabit, getHabits, restoreHabit, toggleHabitComplete } from '../../services/api';
 import './HabitsPage.css';
 
-const presetColors = ['#2997FF', '#5E5CE6', '#64D2FF', '#30D158', '#FF9F0A', '#FF453A', '#BF5AF2'];
+const presetColors = ['#0066FF', '#0052CC', '#4D94FF', '#00C853', '#35D977', '#E53935', '#808080'];
 
 export default function HabitsPage() {
   const [habits, setHabits] = useState<Habit[]>([]);
   const [showModal, setShowModal] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const [formData, setFormData] = useState<{
@@ -22,14 +23,14 @@ export default function HabitsPage() {
     name: '',
     description: '',
     icon: '⚡',
-    color: '#2997FF',
+    color: '#0066FF',
     frequency: 'daily',
     target: 1,
     unit: 'session',
   });
 
   useEffect(() => {
-    getHabits().then(res => setHabits(res));
+    getHabits(true).then(res => setHabits(res));
   }, []);
 
   const showToast = (msg: string) => {
@@ -37,7 +38,31 @@ export default function HabitsPage() {
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  const completed = habits.filter(h => h.completedToday).length;
+  const activeHabits = habits.filter(habit => habit.active);
+  const archivedHabits = habits.filter(habit => !habit.active);
+  const visibleHabits = showArchived ? archivedHabits : activeHabits;
+  const completed = activeHabits.filter(habit => habit.completedToday).length;
+
+  const setArchived = async (habit: Habit, archived: boolean) => {
+    const updated = archived ? await archiveHabit(habit.id) : await restoreHabit(habit.id);
+    if (!updated) {
+      showToast(`Could not ${archived ? 'archive' : 'restore'} “${habit.name}”. Please try again.`);
+      return;
+    }
+    setHabits(prev => prev.map(item => item.id === habit.id ? { ...item, ...updated } : item));
+    showToast(archived ? `“${habit.name}” archived.` : `“${habit.name}” restored.`);
+  };
+
+  const removeHabit = async (habit: Habit) => {
+    if (!window.confirm(`Permanently delete “${habit.name}” and its completion history?`)) return;
+    const deleted = await deleteHabit(habit.id);
+    if (!deleted) {
+      showToast(`Could not delete “${habit.name}”. Please try again.`);
+      return;
+    }
+    setHabits(prev => prev.filter(item => item.id !== habit.id));
+    showToast(`“${habit.name}” deleted.`);
+  };
 
   const toggleHabit = async (id: string) => {
     // Optimistic local update
@@ -83,7 +108,7 @@ export default function HabitsPage() {
       name: '',
       description: '',
       icon: '⚡',
-      color: '#2997FF',
+      color: '#0066FF',
       frequency: 'daily',
       target: 1,
       unit: 'session',
@@ -108,10 +133,29 @@ export default function HabitsPage() {
       <div className="page-header flex items-center justify-between">
         <div>
           <h1 className="page-title">Habits & Rituals</h1>
-          <p className="page-subtitle">{completed} of {habits.length} rituals completed today</p>
+          <p className="page-subtitle">{completed} of {activeHabits.length} rituals completed today</p>
         </div>
         <button className="btn btn-primary" onClick={() => setShowModal(true)}>
           ➕ New Habit
+        </button>
+      </div>
+
+      <div className="habit-view-tabs" role="tablist" aria-label="Habit status">
+        <button
+          className={`filter-pill ${!showArchived ? 'active' : ''}`}
+          role="tab"
+          aria-selected={!showArchived}
+          onClick={() => setShowArchived(false)}
+        >
+          Active ({activeHabits.length})
+        </button>
+        <button
+          className={`filter-pill ${showArchived ? 'active' : ''}`}
+          role="tab"
+          aria-selected={showArchived}
+          onClick={() => setShowArchived(true)}
+        >
+          Archived ({archivedHabits.length})
         </button>
       </div>
 
@@ -119,22 +163,28 @@ export default function HabitsPage() {
       <div className="habits-today-bar card animate-fade-in-up">
         <div className="habits-today-info">
           <span className="habits-today-label">Today's Consistency Velocity</span>
-          <span className="habits-today-count">{completed}/{habits.length}</span>
+          <span className="habits-today-count">{completed}/{activeHabits.length}</span>
         </div>
         <div className="progress-bar lg">
           <div
             className="progress-bar-fill green animated"
-            style={{ width: `${habits.length ? (completed / habits.length) * 100 : 0}%` }}
+            style={{ width: `${activeHabits.length ? (completed / activeHabits.length) * 100 : 0}%` }}
           />
         </div>
       </div>
 
       {/* Habits Grid */}
       <div className="habits-card-grid">
-        {habits.map((habit, i) => (
+        {visibleHabits.length === 0 ? (
+          <div className="card habit-empty-state">
+            <strong>{showArchived ? 'No archived habits' : 'No active habits yet'}</strong>
+            <span>{showArchived ? 'Habits you archive will be kept here so you can restore them later.' : 'Add a habit to start building a steady routine.'}</span>
+            {!showArchived && <button className="btn btn-primary sm" onClick={() => setShowModal(true)}>Create your first habit</button>}
+          </div>
+        ) : visibleHabits.map((habit, i) => (
           <div
             key={habit.id}
-            className={`habit-card card animate-fade-in-up stagger-${(i % 6) + 1} ${habit.completedToday ? 'habit-completed' : ''}`}
+            className={`habit-card card animate-fade-in-up stagger-${(i % 6) + 1} ${habit.completedToday ? 'habit-completed' : ''} ${habit.active ? '' : 'habit-archived'}`}
             style={{ '--habit-accent': habit.color } as React.CSSProperties}
           >
             <div className="habit-card-header">
@@ -144,6 +194,24 @@ export default function HabitsPage() {
               <div className="habit-card-streak">
                 <span className="habit-card-streak-value">🔥 {habit.currentStreak}</span>
                 <span className="habit-card-streak-label">day streak</span>
+              </div>
+              <div className="habit-card-actions">
+                <button
+                  className="habit-archive-button"
+                  onClick={() => void setArchived(habit, habit.active)}
+                  aria-label={habit.active ? `Archive ${habit.name}` : `Restore ${habit.name}`}
+                  title={habit.active ? 'Archive habit' : 'Restore habit'}
+                >
+                  {habit.active ? 'Archive' : 'Restore'}
+                </button>
+                <button
+                  className="habit-delete-button"
+                  onClick={() => void removeHabit(habit)}
+                  aria-label={`Delete habit ${habit.name}`}
+                  title="Permanently delete habit"
+                >
+                  Delete
+                </button>
               </div>
             </div>
 
@@ -179,9 +247,10 @@ export default function HabitsPage() {
               </div>
               <button
                 className={`btn sm ${habit.completedToday ? 'btn-success' : 'btn-secondary'}`}
+                disabled={!habit.active}
                 onClick={() => toggleHabit(habit.id)}
               >
-                {habit.completedToday ? '✓ Done Today' : 'Mark Done'}
+                {!habit.active ? 'Archived' : habit.completedToday ? '✓ Done Today' : 'Mark Done'}
               </button>
             </div>
           </div>

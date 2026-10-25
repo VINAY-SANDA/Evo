@@ -43,3 +43,15 @@ The API server runs on [http://localhost:5000](http://localhost:5000).
 
 ### 3. Database Setup (PostgreSQL + pgvector)
 Run the SQL schema located at `backend/src/db/schema.sql` against your PostgreSQL database to initialize all tables, relations, and the vector cosine similarity index.
+
+### 4. Backend Authentication
+Set these environment variables for the backend before signing in:
+
+- `EVO_MASTER_PASSCODE`: the owner passcode (local development defaults to `Vinay@2026`; production must set this value).
+- `EVO_AUTH_SECRET`: a long, random secret used to sign seven-day sessions.
+- `EVO_MCP_TOKEN`: a separate secret shared by the MCP server and authenticated MCP clients.
+- `CORS_ORIGIN`: comma-separated frontend origins; local development defaults to `http://localhost:5173`.
+
+The frontend also needs `VITE_API_URL` set to the backend origin when it is hosted separately. MCP clients should send `Authorization: Bearer <EVO_MCP_TOKEN>` to the Streamable HTTP endpoint. The stdio MCP server uses the same token to call the backend API. Local login uses `Vinay@2026` unless `EVO_MASTER_PASSCODE` overrides it; production requires an explicitly configured passcode. Offline frontend login remains disabled.
+
+Run the backend regression checks with `npm --prefix backend test`.

@@ -69,7 +69,7 @@
 
 .tone-card.selected {
   border-color: var(--evo-primary);
-  background: rgba(41, 151, 255, 0.1);
+  background: rgba(0, 102, 255, 0.1);
 }
 
 .tone-card strong {
@@ -130,7 +130,7 @@
 }
 
 .memory-type-pill.preference {
-  background: rgba(41, 151, 255, 0.12);
+  background: rgba(0, 102, 255, 0.12);
   color: var(--evo-primary);
 }
 

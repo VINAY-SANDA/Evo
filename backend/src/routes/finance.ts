@@ -38,6 +38,12 @@ router.get('/summary', async (_req: Request, res: Response) => {
     const netSavings = totalIncome - totalExpenses;
 
     res.json({
+      summary: {
+        totalIncome,
+        totalExpenses,
+        netSavings,
+        savingsRate: totalIncome > 0 ? Math.round((netSavings / totalIncome) * 100) : 0,
+      },
       totalIncome,
       totalExpenses,
       netSavings,
@@ -70,7 +76,9 @@ router.get('/expenses', async (_req: Request, res: Response) => {
 router.post('/expenses', async (req: Request, res: Response) => {
   try {
     const { amount, category, description, date } = req.body;
-    if (!amount || isNaN(Number(amount))) return res.status(400).json({ error: 'amount is required' });
+    if (!Number.isFinite(Number(amount)) || Number(amount) <= 0) {
+      return res.status(400).json({ error: 'amount must be greater than zero' });
+    }
 
     const sql = `
       INSERT INTO expenses (user_id, amount, category, date, description)
@@ -88,6 +96,17 @@ router.post('/expenses', async (req: Request, res: Response) => {
 
     const result = await query(sql, params);
     res.status(201).json(result.rows[0]);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/finance/expenses/:id
+router.delete('/expenses/:id', async (req: Request, res: Response) => {
+  try {
+    const result = await query('DELETE FROM expenses WHERE id = $1 AND user_id = $2 RETURNING id', [String(req.params.id), DEFAULT_USER_ID]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Expense not found' });
+    res.status(204).send();
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -113,7 +132,9 @@ router.get('/income', async (_req: Request, res: Response) => {
 router.post('/income', async (req: Request, res: Response) => {
   try {
     const { amount, source, category, date } = req.body;
-    if (!amount) return res.status(400).json({ error: 'amount is required' });
+    if (!Number.isFinite(Number(amount)) || Number(amount) <= 0) {
+      return res.status(400).json({ error: 'amount must be greater than zero' });
+    }
 
     const sql = `
       INSERT INTO incomes (user_id, amount, source, category, date)
@@ -131,6 +152,17 @@ router.post('/income', async (req: Request, res: Response) => {
 
     const result = await query(sql, params);
     res.status(201).json(result.rows[0]);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/finance/income/:id
+router.delete('/income/:id', async (req: Request, res: Response) => {
+  try {
+    const result = await query('DELETE FROM incomes WHERE id = $1 AND user_id = $2 RETURNING id', [String(req.params.id), DEFAULT_USER_ID]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Income not found' });
+    res.status(204).send();
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -158,7 +190,9 @@ router.get('/savings', async (_req: Request, res: Response) => {
 router.post('/savings', async (req: Request, res: Response) => {
   try {
     const { title, targetAmount, currentAmount, deadline } = req.body;
-    if (!title || !targetAmount) return res.status(400).json({ error: 'title and targetAmount required' });
+    if (!String(title || '').trim() || !Number.isFinite(Number(targetAmount)) || Number(targetAmount) <= 0) {
+      return res.status(400).json({ error: 'title and a positive targetAmount are required' });
+    }
 
     const sql = `
       INSERT INTO savings_goals (user_id, title, target_amount, current_amount, deadline)
@@ -178,6 +212,17 @@ router.post('/savings', async (req: Request, res: Response) => {
 
     const result = await query(sql, params);
     res.status(201).json(result.rows[0]);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/finance/savings/:id
+router.delete('/savings/:id', async (req: Request, res: Response) => {
+  try {
+    const result = await query('DELETE FROM savings_goals WHERE id = $1 AND user_id = $2 RETURNING id', [String(req.params.id), DEFAULT_USER_ID]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Savings goal not found' });
+    res.status(204).send();
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

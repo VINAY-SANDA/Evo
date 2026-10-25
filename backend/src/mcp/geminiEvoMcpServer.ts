@@ -6,32 +6,41 @@ import {
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 import dotenv from 'dotenv';
-import path from 'path';
 
 dotenv.config();
 
-// Default in-memory fallback dataset in case backend HTTP is not running
-let localTasks: any[] = [];
-let localGoals: any[] = [];
-let localHabits: any[] = [];
-let localMemories: string[] = [];
-
 export function createEvoMcpServer(customApiUrl?: string): Server {
-  const EVO_API_URL = customApiUrl || process.env.EVO_API_URL || `http://localhost:${process.env.PORT || 5000}/api`;
+  const EVO_API_URL = (customApiUrl || process.env.EVO_API_URL || `http://localhost:${process.env.PORT || 5000}/api`).replace(/\/+$/, '');
 
-  async function fetchEvo<T>(endpoint: string, options: RequestInit = {}): Promise<T | null> {
+  async function fetchEvo<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+    const serviceToken = process.env.EVO_MCP_TOKEN;
+    if (!serviceToken) {
+      throw new Error('EVO_MCP_TOKEN is not configured for the MCP server.');
+    }
+
     try {
       const res = await fetch(`${EVO_API_URL}${endpoint}`, {
         ...options,
         headers: {
           'Content-Type': 'application/json',
+          Authorization: `Bearer ${serviceToken}`,
           ...(options.headers || {}),
         },
       });
-      if (!res.ok) return null;
-      return (await res.json()) as T;
-    } catch (err: any) {
-      return null;
+      if (!res.ok) {
+        let detail = '';
+        try {
+          const body = await res.json() as { error?: string };
+          detail = typeof body.error === 'string' ? `: ${body.error}` : '';
+        } catch {
+          // Keep the status as the useful, safe error detail.
+        }
+        throw new Error(`EVO request failed (${res.status})${detail}`);
+      }
+      return await res.json() as T;
+    } catch (error) {
+      if (error instanceof Error && error.message.startsWith('EVO request failed')) throw error;
+      throw new Error('EVO backend is unreachable; the operation result could not be confirmed. Check EVO before retrying.');
     }
   }
 
@@ -209,15 +218,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   try {
     switch (name) {
       case 'evo_get_dashboard': {
-        const remote = await fetchEvo<any>('/dashboard');
-        const data = remote || {
-          user: { name: 'Vinay', aiTone: 'rigorous' },
-          overallScore: 0,
-          weeklyChange: 0,
-          todayStats: { tasksCompleted: 0, totalTasks: 0, habitsCompleted: 0, totalHabits: 0, todaySpend: 0 },
-          topStreaks: localHabits.map(h => ({ name: h.name, streak: h.streak, icon: h.icon })),
-          aiInsight: 'Your operational dashboard is online. Add goals, tasks, and habits to build execution metrics.',
-        };
+        const data = await fetchEvo<any>('/dashboard');
         return {
           content: [{ type: 'text', text: JSON.stringify(data, null, 2) }],
         };
@@ -225,7 +226,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       case 'evo_list_tasks': {
         const remote = await fetchEvo<{ tasks: any[] }>('/tasks');
-        let tasks = remote?.tasks || localTasks;
+        let tasks = remote.tasks;
         if (args.status && args.status !== 'all') {
           tasks = tasks.filter((t: any) => t.status === args.status);
         }
@@ -244,12 +245,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           estimatedMinutes: args.estimatedMinutes || 45,
           status: 'todo',
         };
-        const remote = await fetchEvo<any>('/tasks', {
+        const created = await fetchEvo<any>('/tasks', {
           method: 'POST',
           body: JSON.stringify(taskPayload),
         });
-        const created = remote || { id: `task_${Date.now()}`, ...taskPayload };
-        localTasks.unshift(created);
         return {
           content: [{ type: 'text', text: `✓ Created task: "${created.title}" [${created.priority.toUpperCase()}] Due: ${created.dueDate}` }],
         };
@@ -257,19 +256,15 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       case 'evo_toggle_task': {
         const id = String(args.id);
-        const remote = await fetchEvo<any>(`/tasks/${id}/toggle`, { method: 'POST' });
-        const local = localTasks.find(t => t.id === id);
-        if (local) {
-          local.status = local.status === 'completed' ? 'todo' : 'completed';
-        }
+        const updated = await fetchEvo<any>(`/tasks/${id}/toggle`, { method: 'POST' });
         return {
-          content: [{ type: 'text', text: `✓ Task ${id} status toggled` }],
+          content: [{ type: 'text', text: `Task "${updated.title}" is now ${updated.status}.` }],
         };
       }
 
       case 'evo_list_goals': {
         const remote = await fetchEvo<{ goals: any[] }>('/goals');
-        const goals = remote?.goals || localGoals;
+        const goals = remote.goals;
         return {
           content: [{ type: 'text', text: JSON.stringify(goals, null, 2) }],
         };
@@ -286,12 +281,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           priority: args.priority || 'high',
           progress: 0,
         };
-        const remote = await fetchEvo<any>('/goals', {
+        const created = await fetchEvo<any>('/goals', {
           method: 'POST',
           body: JSON.stringify(goalPayload),
         });
-        const created = remote || { id: `goal_${Date.now()}`, ...goalPayload };
-        localGoals.unshift(created);
         return {
           content: [{ type: 'text', text: `✓ Created goal: "${created.title}" (${created.category})` }],
         };
@@ -299,7 +292,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       case 'evo_list_habits': {
         const remote = await fetchEvo<{ habits: any[] }>('/habits');
-        const habits = remote?.habits || localHabits;
+        const habits = remote.habits;
         return {
           content: [{ type: 'text', text: JSON.stringify(habits, null, 2) }],
         };
@@ -307,26 +300,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       case 'evo_toggle_habit': {
         const id = String(args.id);
-        const remote = await fetchEvo<any>(`/habits/${id}/complete`, { method: 'POST' });
-        const local = localHabits.find(h => h.id === id);
-        if (local) {
-          local.completedToday = !local.completedToday;
-          local.streak = local.completedToday ? local.streak + 1 : Math.max(0, local.streak - 1);
-        }
+        const updated = await fetchEvo<any>(`/habits/${id}/complete`, { method: 'POST' });
         return {
-          content: [{ type: 'text', text: `✓ Toggled habit ${id} for today` }],
+          content: [{ type: 'text', text: `"${updated.name}" is ${updated.completedToday ? 'complete' : 'not complete'} today.` }],
         };
       }
 
       case 'evo_get_finance_summary': {
-        const remote = await fetchEvo<any>('/finance/summary');
-        const summary = remote || {
-          totalIncome: 0,
-          totalExpenses: 0,
-          netSavings: 0,
-          topCategory: 'None',
-          emergencyFundProgress: '0%',
-        };
+        const summary = await fetchEvo<any>('/finance/summary');
         return {
           content: [{ type: 'text', text: JSON.stringify(summary, null, 2) }],
         };
@@ -339,18 +320,18 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           description: args.description,
           date: args.date || new Date().toISOString().split('T')[0],
         };
-        const remote = await fetchEvo<any>('/finance/expenses', {
+        const created = await fetchEvo<any>('/finance/expenses', {
           method: 'POST',
           body: JSON.stringify(expPayload),
         });
         return {
-          content: [{ type: 'text', text: `✓ Logged ₹${expPayload.amount} for ${expPayload.description} (${expPayload.category})` }],
+          content: [{ type: 'text', text: `Logged ₹${created.amount} for ${created.description} (${created.category}).` }],
         };
       }
 
       case 'evo_get_memories': {
         const remote = await fetchEvo<{ memories: any[] }>('/memories');
-        const memories = remote?.memories || localMemories;
+        const memories = remote.memories;
         return {
           content: [{ type: 'text', text: JSON.stringify(memories, null, 2) }],
         };
@@ -362,13 +343,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           type: args.type || 'preference',
           importance: args.importance || 8,
         };
-        const remote = await fetchEvo<any>('/memories', {
+        const created = await fetchEvo<any>('/memories', {
           method: 'POST',
           body: JSON.stringify(memPayload),
         });
-        localMemories.push(String(args.text));
         return {
-          content: [{ type: 'text', text: `✓ Learned new memory: "${args.text}"` }],
+          content: [{ type: 'text', text: `Saved memory: "${created.text}".` }],
         };
       }
 
@@ -378,7 +358,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           method: 'POST',
           body: JSON.stringify({ message: query }),
         });
-        const reply = remote?.content || `No action protocol active for "${query}". Define goals and tasks to generate personalized insights.`;
+        const reply = remote.content;
         return {
           content: [{ type: 'text', text: reply }],
         };

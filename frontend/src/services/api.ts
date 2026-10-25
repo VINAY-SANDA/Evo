@@ -4,6 +4,8 @@ import type {
   Task,
   Habit,
   Expense,
+  Income,
+  SavingsGoal,
   LearningSubject,
   LearningTopic,
   Project,
@@ -17,6 +19,7 @@ import type {
   Memory,
   AiMessage,
 } from '../types';
+import { getAuthToken } from './authStorage';
 
 const rawApiUrl = (import.meta.env.VITE_API_URL || '').trim();
 const isLocalhost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
@@ -26,7 +29,7 @@ const API_BASE_URL = rawApiUrl
     ? 'http://localhost:5000'
     : '';
 
-async function apiRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T | null> {
+async function apiRequest<T>(endpoint: string, options: RequestInit = {}, timeoutMs = 0): Promise<T | null> {
   if (!API_BASE_URL) {
     console.error(
       `[EVO API ERROR] VITE_API_URL is missing! Cannot call ${endpoint}.\n` +
@@ -35,13 +38,18 @@ async function apiRequest<T>(endpoint: string, options: RequestInit = {}): Promi
     return null;
   }
 
-  const token = typeof window !== 'undefined' ? localStorage.getItem('evo_auth_token') : null;
+  const token = typeof window !== 'undefined' ? getAuthToken() : null;
   const authHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
 
   const url = `${API_BASE_URL}${endpoint}`;
+  const timeoutController = timeoutMs > 0 ? new AbortController() : undefined;
+  const timeoutId = timeoutController && typeof window !== 'undefined'
+    ? window.setTimeout(() => timeoutController.abort(), timeoutMs)
+    : undefined;
   try {
     const res = await fetch(url, {
       ...options,
+      signal: options.signal ?? timeoutController?.signal,
       headers: {
         'Content-Type': 'application/json',
         ...authHeaders,
@@ -55,8 +63,29 @@ async function apiRequest<T>(endpoint: string, options: RequestInit = {}): Promi
     }
     return (await res.json()) as T;
   } catch (err) {
+    if (timeoutController?.signal.aborted) {
+      console.error(`[EVO API Timeout] ${endpoint} did not respond within ${timeoutMs}ms.`);
+      return null;
+    }
     console.error(`[EVO Network/CORS Error] Failed to fetch ${url}:`, err);
     return null;
+  } finally {
+    if (timeoutId !== undefined && typeof window !== 'undefined') window.clearTimeout(timeoutId);
+  }
+}
+
+async function apiDelete(endpoint: string): Promise<boolean> {
+  if (!API_BASE_URL) return false;
+  const token = typeof window !== 'undefined' ? getAuthToken() : null;
+  try {
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      method: 'DELETE',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    return response.ok;
+  } catch (error) {
+    console.error(`[EVO Network/CORS Error] Failed to delete ${endpoint}:`, error);
+    return false;
   }
 }
 
@@ -135,7 +164,7 @@ export async function updateGoalProgress(id: string, progress: number): Promise<
 }
 
 export async function deleteGoal(id: string): Promise<boolean> {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('evo_auth_token') : null;
+  const token = typeof window !== 'undefined' ? getAuthToken() : null;
   const authHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
   if (!API_BASE_URL) return true;
   try {
@@ -173,6 +202,11 @@ export async function getTasks(): Promise<Task[]> {
   return remote?.tasks || [];
 }
 
+export async function getTodayTasks(): Promise<Task[]> {
+  const remote = await apiRequest<{ tasks: Task[] }>('/api/tasks/today');
+  return remote?.tasks || [];
+}
+
 export async function createTask(task: Partial<Task>): Promise<Task | null> {
   return await apiRequest<Task>('/api/tasks', {
     method: 'POST',
@@ -185,7 +219,7 @@ export async function toggleTaskStatus(id: string): Promise<Task | null> {
 }
 
 export async function deleteTask(id: string): Promise<boolean> {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('evo_auth_token') : null;
+  const token = typeof window !== 'undefined' ? getAuthToken() : null;
   const authHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
   if (!API_BASE_URL) return true;
   try {
@@ -200,8 +234,9 @@ export async function deleteTask(id: string): Promise<boolean> {
 }
 
 // ── Habits ──
-export async function getHabits(): Promise<Habit[]> {
-  const remote = await apiRequest<{ habits: Habit[] }>('/api/habits');
+export async function getHabits(includeArchived = false): Promise<Habit[]> {
+  const suffix = includeArchived ? '?includeArchived=true' : '';
+  const remote = await apiRequest<{ habits: Habit[] }>(`/api/habits${suffix}`);
   return remote?.habits || [];
 }
 
@@ -216,15 +251,26 @@ export async function toggleHabitComplete(id: string): Promise<Habit | null> {
   return await apiRequest<Habit>(`/api/habits/${id}/complete`, { method: 'POST' });
 }
 
+export async function archiveHabit(id: string): Promise<Habit | null> {
+  return await apiRequest<Habit>(`/api/habits/${id}/archive`, { method: 'PATCH' });
+}
+
+export async function restoreHabit(id: string): Promise<Habit | null> {
+  return await apiRequest<Habit>(`/api/habits/${id}/restore`, { method: 'PATCH' });
+}
+
+export async function deleteHabit(id: string): Promise<boolean> {
+  return apiDelete(`/api/habits/${id}`);
+}
+
 // ── Finance ──
 export async function getFinanceSummary() {
   const remote = await apiRequest<{
-    summary: {
-      totalIncome: number;
-      totalExpenses: number;
-      netSavings: number;
-      savingsRate: number;
-    };
+    summary?: { totalIncome?: number; totalExpenses?: number; netSavings?: number; savingsRate?: number };
+    totalIncome?: number;
+    totalExpenses?: number;
+    netSavings?: number;
+    savingsRate?: number;
     expenses: Expense[];
     income: any[];
     savingsGoals: any[];
@@ -232,9 +278,10 @@ export async function getFinanceSummary() {
 
   if (remote) {
     return {
-      totalIncome: remote.summary?.totalIncome || 0,
-      totalExpenses: remote.summary?.totalExpenses || 0,
-      netSavings: remote.summary?.netSavings || 0,
+      totalIncome: remote.summary?.totalIncome ?? remote.totalIncome ?? 0,
+      totalExpenses: remote.summary?.totalExpenses ?? remote.totalExpenses ?? 0,
+      netSavings: remote.summary?.netSavings ?? remote.netSavings ?? 0,
+      savingsRate: remote.summary?.savingsRate ?? remote.savingsRate ?? 0,
       expenses: remote.expenses || [],
       income: remote.income || [],
       savingsGoals: remote.savingsGoals || [],
@@ -258,6 +305,32 @@ export async function addExpense(expense: Partial<Expense>): Promise<Expense | n
   });
 }
 
+export async function addIncome(income: Partial<Income>): Promise<Income | null> {
+  return await apiRequest<Income>('/api/finance/income', {
+    method: 'POST',
+    body: JSON.stringify(income),
+  });
+}
+
+export async function addSavingsGoal(goal: Partial<SavingsGoal>): Promise<SavingsGoal | null> {
+  return await apiRequest<SavingsGoal>('/api/finance/savings', {
+    method: 'POST',
+    body: JSON.stringify(goal),
+  });
+}
+
+export async function deleteExpense(id: string): Promise<boolean> {
+  return apiDelete(`/api/finance/expenses/${id}`);
+}
+
+export async function deleteIncome(id: string): Promise<boolean> {
+  return apiDelete(`/api/finance/income/${id}`);
+}
+
+export async function deleteSavingsGoal(id: string): Promise<boolean> {
+  return apiDelete(`/api/finance/savings/${id}`);
+}
+
 // ── Learning ──
 export async function getLearningSubjects(): Promise<LearningSubject[]> {
   const remote = await apiRequest<{ subjects: LearningSubject[] }>('/api/learning/subjects');
@@ -265,9 +338,21 @@ export async function getLearningSubjects(): Promise<LearningSubject[]> {
 }
 
 export async function getLearningTopics(subjectId?: string): Promise<LearningTopic[]> {
-  const url = subjectId ? `/api/learning/subjects/${subjectId}/topics` : '/api/learning/subjects';
+  if (!subjectId) return [];
+  const url = `/api/learning/subjects/${subjectId}/topics`;
   const remote = await apiRequest<{ topics: LearningTopic[] }>(url);
   return remote?.topics || [];
+}
+
+export async function createLearningSubject(subject: Partial<LearningSubject>): Promise<LearningSubject | null> {
+  return await apiRequest<LearningSubject>('/api/learning/subjects', {
+    method: 'POST',
+    body: JSON.stringify(subject),
+  });
+}
+
+export async function deleteLearningSubject(id: string): Promise<boolean> {
+  return apiDelete(`/api/learning/subjects/${id}`);
 }
 
 export async function createTopic(subjectId: string, topic: Partial<LearningTopic>): Promise<LearningTopic | null> {
@@ -282,6 +367,10 @@ export async function updateTopicStatus(id: string, status: string): Promise<Lea
     method: 'PATCH',
     body: JSON.stringify({ status }),
   });
+}
+
+export async function deleteLearningTopic(id: string): Promise<boolean> {
+  return apiDelete(`/api/learning/topics/${id}`);
 }
 
 // ── Projects ──
@@ -373,7 +462,7 @@ export async function sendAiChatMessage(message: string, context?: any): Promise
   }>('/api/ai/chat', {
     method: 'POST',
     body: JSON.stringify({ message, context }),
-  });
+  }, 28000);
 
   if (remote) {
     return {
@@ -388,7 +477,7 @@ export async function sendAiChatMessage(message: string, context?: any): Promise
   return {
     id: `msg_${Date.now()}_ai`,
     role: 'assistant',
-    content: `EVO system acknowledged: "${message}". Your execution data is being tracked live in Supabase. Continue focusing on high-leverage milestones.`,
+    content: 'EVO could not get an AI response in time. Check that the backend and Gemini API are available, then try again.',
     timestamp: new Date().toISOString(),
   };
 }

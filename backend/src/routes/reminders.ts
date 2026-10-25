@@ -40,10 +40,15 @@ router.post('/', async (req: Request, res: Response) => {
 
     const result = await query(
       `INSERT INTO reminders (user_id, title, type, time, days_of_week, active, goal_id)
-       VALUES ($1, $2, $3, $4, $5, true, $6)
+       SELECT $1, $2, $3, $4, $5, true, $6
+       WHERE $6::uuid IS NULL OR EXISTS (
+         SELECT 1 FROM goals WHERE id = $6 AND user_id = $1
+       )
        RETURNING *`,
       [DEFAULT_USER_ID, title, type || 'daily', time, daysOfWeek || null, goalId || null]
     );
+
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Goal not found' });
 
     res.status(201).json(mapReminder(result.rows[0]));
   } catch (error) {
@@ -56,7 +61,10 @@ router.post('/', async (req: Request, res: Response) => {
 router.patch('/:id', async (req: Request, res: Response) => {
   try {
     const { title, type, time, daysOfWeek, active, goalId } = req.body;
-    const existing = await query('SELECT * FROM reminders WHERE id = $1', [req.params.id]);
+    const existing = await query(
+      'SELECT * FROM reminders WHERE id = $1 AND user_id = $2',
+      [req.params.id, DEFAULT_USER_ID]
+    );
     if (existing.rows.length === 0) {
       return res.status(404).json({ error: 'Reminder not found' });
     }
@@ -72,10 +80,15 @@ router.patch('/:id', async (req: Request, res: Response) => {
     const result = await query(
       `UPDATE reminders
        SET title = $1, type = $2, time = $3, days_of_week = $4, active = $5, goal_id = $6
-       WHERE id = $7
+       WHERE id = $7 AND user_id = $8
+         AND ($6::uuid IS NULL OR EXISTS (
+           SELECT 1 FROM goals WHERE id = $6 AND user_id = $8
+         ))
        RETURNING *`,
-      [newTitle, newType, newTime, newDays, newActive, newGoalId, req.params.id]
+      [newTitle, newType, newTime, newDays, newActive, newGoalId, req.params.id, DEFAULT_USER_ID]
     );
+
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Reminder or goal not found' });
 
     res.json(mapReminder(result.rows[0]));
   } catch (error) {
@@ -87,7 +100,10 @@ router.patch('/:id', async (req: Request, res: Response) => {
 // DELETE /api/reminders/:id
 router.delete('/:id', async (req: Request, res: Response) => {
   try {
-    const result = await query('DELETE FROM reminders WHERE id = $1 RETURNING id', [req.params.id]);
+    const result = await query(
+      'DELETE FROM reminders WHERE id = $1 AND user_id = $2 RETURNING id',
+      [req.params.id, DEFAULT_USER_ID]
+    );
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Reminder not found' });
     }

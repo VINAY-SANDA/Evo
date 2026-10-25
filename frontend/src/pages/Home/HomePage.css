@@ -281,7 +281,31 @@
   }
 
   .hero-stats {
-    justify-content: center;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    align-items: start;
+    justify-content: initial;
+    gap: var(--space-3);
+    width: 100%;
+  }
+
+  .hero-stat-item {
+    min-width: 0;
+    align-items: center;
+    text-align: center;
+  }
+
+  .hero-stat-value {
+    font-size: clamp(1.125rem, 5vw, var(--text-2xl));
+  }
+
+  .hero-stat-label {
+    text-align: center;
+    letter-spacing: 0.2px;
+  }
+
+  .hero-stat-divider {
+    display: none;
   }
 
   .quick-actions {

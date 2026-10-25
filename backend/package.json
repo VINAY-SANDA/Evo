@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
+    "test": "npm run build && node --test",
     "db:init": "tsx src/db/initDb.ts",
     "mcp": "tsx src/mcp/geminiEvoMcpServer.ts",
     "start": "node dist/index.js"

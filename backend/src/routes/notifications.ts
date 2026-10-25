@@ -70,8 +70,8 @@ router.patch('/read-all', async (_req: Request, res: Response) => {
 router.patch('/:id/read', async (req: Request, res: Response) => {
   try {
     const result = await query(
-      "UPDATE notifications SET status = 'read', read_at = CURRENT_TIMESTAMP WHERE id = $1 RETURNING *",
-      [req.params.id]
+      "UPDATE notifications SET status = 'read', read_at = CURRENT_TIMESTAMP WHERE id = $1 AND user_id = $2 RETURNING *",
+      [req.params.id, DEFAULT_USER_ID]
     );
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Notification not found' });
@@ -86,7 +86,10 @@ router.patch('/:id/read', async (req: Request, res: Response) => {
 // DELETE /api/notifications/:id
 router.delete('/:id', async (req: Request, res: Response) => {
   try {
-    const result = await query('DELETE FROM notifications WHERE id = $1 RETURNING id', [req.params.id]);
+    const result = await query(
+      'DELETE FROM notifications WHERE id = $1 AND user_id = $2 RETURNING id',
+      [req.params.id, DEFAULT_USER_ID]
+    );
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Notification not found' });
     }

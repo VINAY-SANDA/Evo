@@ -38,8 +38,8 @@
 .review-score-badge {
   display: flex;
   align-items: baseline;
-  background: rgba(41, 151, 255, 0.12);
-  border: 1px solid rgba(41, 151, 255, 0.25);
+  background: rgba(0, 102, 255, 0.12);
+  border: 1px solid rgba(0, 102, 255, 0.25);
   padding: var(--space-2) var(--space-4);
   border-radius: var(--radius-xl);
 }
@@ -103,7 +103,7 @@
   gap: var(--space-3);
   padding: var(--space-4);
   border-radius: var(--radius-lg);
-  background: linear-gradient(135deg, rgba(41, 151, 255, 0.08), rgba(255, 255, 255, 0.02));
+  background: linear-gradient(135deg, rgba(0, 102, 255, 0.08), rgba(255, 255, 255, 0.02));
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
 

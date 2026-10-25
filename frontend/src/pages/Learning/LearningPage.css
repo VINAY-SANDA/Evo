@@ -11,6 +11,12 @@
   gap: var(--space-3);
 }
 
+.learning-header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
 .quick-stat-badge {
   display: flex;
   align-items: center;
@@ -44,9 +50,37 @@
 
 .subject-card-top {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  gap: var(--space-2);
   margin-bottom: var(--space-3);
+}
+
+.subject-progress-pill {
+  margin-left: auto;
+}
+
+.subject-delete-button,
+.topic-delete-button {
+  border: 1px solid var(--evo-border);
+  background: transparent;
+  color: var(--evo-text-secondary);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-full);
+  font-size: 1.25rem;
+  line-height: 1;
+  transition: color var(--duration-fast), border-color var(--duration-fast), background var(--duration-fast);
+}
+
+.subject-delete-button:hover,
+.topic-delete-button:hover {
+  color: var(--evo-danger);
+  border-color: var(--evo-danger);
+  background: var(--evo-danger-bg);
 }
 
 .subject-card-icon {
@@ -149,6 +183,43 @@
 .topic-row:hover {
   background: var(--evo-bg-hover);
   border-color: var(--evo-border-focus);
+}
+
+.topic-status-action {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+@media (max-width: 640px) {
+  .learning-header-actions {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .learning-quick-stats {
+    flex-wrap: wrap;
+  }
+
+  .topic-search-box {
+    width: 100%;
+  }
+
+  .subject-details-header > .flex:last-child {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .topic-row {
+    align-items: flex-start;
+    gap: var(--space-2);
+    padding: var(--space-3);
+  }
+
+  .topic-status-action {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
 }
 
 .topic-order-badge {

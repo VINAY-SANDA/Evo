@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import type { Task, Habit, ProgressScore } from '../../types';
 import {
   getHabits,
-  getTasks,
+  getTodayTasks,
   toggleHabitComplete,
   toggleTaskStatus,
   getDashboardData,
@@ -56,8 +56,8 @@ export default function HomePage() {
   });
 
   useEffect(() => {
-    getTasks().then(allTasks => {
-      setTasks(allTasks);
+    getTodayTasks().then(todayTasks => {
+      setTasks(todayTasks);
     });
 
     getHabits().then(h => setHabits(h));
@@ -177,7 +177,7 @@ export default function HomePage() {
           <div className="task-list">
             {tasks.length === 0 ? (
               <p style={{ color: 'var(--evo-text-secondary)', padding: 'var(--space-4)', textAlign: 'center' }}>
-                No tasks created yet. Click '+ New Task' below to add your first high-leverage task.
+                Nothing is planned for today yet. Add a task for today or review your schedule.
               </p>
             ) : (
               tasks.slice(0, 6).map((task) => (

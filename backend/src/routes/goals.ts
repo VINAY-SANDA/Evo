@@ -161,14 +161,15 @@ router.get('/:id/milestones', async (req: Request, res: Response) => {
   try {
     const id = String(req.params.id);
     const sql = `
-      SELECT id, goal_id as "goalId", title, order_index as "orderIndex",
-             status, to_char(due_date, 'YYYY-MM-DD') as "dueDate",
-             completed_at as "completedAt", created_at as "createdAt"
-      FROM goal_milestones
-      WHERE goal_id = $1
-      ORDER BY order_index ASC, created_at ASC
+      SELECT gm.id, gm.goal_id as "goalId", gm.title, gm.order_index as "orderIndex",
+             gm.status, to_char(gm.due_date, 'YYYY-MM-DD') as "dueDate",
+             gm.completed_at as "completedAt", gm.created_at as "createdAt"
+      FROM goal_milestones gm
+      JOIN goals g ON g.id = gm.goal_id
+      WHERE g.id = $1 AND g.user_id = $2
+      ORDER BY gm.order_index ASC, gm.created_at ASC
     `;
-    const result = await query(sql, [id]);
+    const result = await query(sql, [id, DEFAULT_USER_ID]);
     res.json({ milestones: result.rows, total: result.rows.length });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -184,19 +185,22 @@ router.post('/:id/milestones', async (req: Request, res: Response) => {
 
     const sql = `
       INSERT INTO goal_milestones (goal_id, title, due_date, order_index, status)
-      VALUES ($1, $2, $3, $4, 'pending')
+      SELECT $1, $3, $4, $5, 'pending'
+      WHERE EXISTS (SELECT 1 FROM goals WHERE id = $1 AND user_id = $2)
       RETURNING id, goal_id as "goalId", title, order_index as "orderIndex",
                 status, to_char(due_date, 'YYYY-MM-DD') as "dueDate",
                 completed_at as "completedAt", created_at as "createdAt"
     `;
     const params = [
       goalId,
+      DEFAULT_USER_ID,
       String(title).trim(),
       dueDate || null,
       Number(orderIndex) || 1,
     ];
 
     const result = await query(sql, params);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Goal not found' });
     res.status(201).json(result.rows[0]);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -220,14 +224,16 @@ router.patch('/milestones/:mId/toggle', async (req: Request, res: Response) => {
   try {
     const mId = String(req.params.mId);
     const sql = `
-      UPDATE goal_milestones
-      SET status = CASE WHEN status = 'completed' THEN 'pending' ELSE 'completed' END,
-          completed_at = CASE WHEN status = 'completed' THEN NULL ELSE CURRENT_TIMESTAMP END
-      WHERE id = $1
-      RETURNING id, goal_id as "goalId", title, status, to_char(due_date, 'YYYY-MM-DD') as "dueDate",
-                completed_at as "completedAt", created_at as "createdAt"
+      UPDATE goal_milestones gm
+      SET status = CASE WHEN gm.status = 'completed' THEN 'pending' ELSE 'completed' END,
+          completed_at = CASE WHEN gm.status = 'completed' THEN NULL ELSE CURRENT_TIMESTAMP END
+      FROM goals g
+      WHERE gm.id = $1 AND gm.goal_id = g.id AND g.user_id = $2
+      RETURNING gm.id, gm.goal_id as "goalId", gm.title, gm.status,
+                to_char(gm.due_date, 'YYYY-MM-DD') as "dueDate",
+                gm.completed_at as "completedAt", gm.created_at as "createdAt"
     `;
-    const result = await query(sql, [mId]);
+    const result = await query(sql, [mId, DEFAULT_USER_ID]);
     if (result.rows.length === 0) return res.status(404).json({ error: 'Milestone not found' });
     res.json(result.rows[0]);
   } catch (err: any) {
@@ -239,7 +245,13 @@ router.patch('/milestones/:mId/toggle', async (req: Request, res: Response) => {
 router.delete('/milestones/:mId', async (req: Request, res: Response) => {
   try {
     const mId = String(req.params.mId);
-    const result = await query('DELETE FROM goal_milestones WHERE id = $1 RETURNING id', [mId]);
+    const result = await query(
+      `DELETE FROM goal_milestones gm
+       USING goals g
+       WHERE gm.id = $1 AND gm.goal_id = g.id AND g.user_id = $2
+       RETURNING gm.id`,
+      [mId, DEFAULT_USER_ID]
+    );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Milestone not found' });
     res.status(204).send();
   } catch (err: any) {

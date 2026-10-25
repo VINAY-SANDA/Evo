@@ -1,6 +1,14 @@
 import { useState, useEffect } from 'react';
 import type { LearningSubject, LearningTopic } from '../../types';
-import { getLearningSubjects, getLearningTopics, createTopic, updateTopicStatus } from '../../services/api';
+import {
+  createLearningSubject,
+  createTopic,
+  deleteLearningSubject,
+  deleteLearningTopic,
+  getLearningSubjects,
+  getLearningTopics,
+  updateTopicStatus,
+} from '../../services/api';
 import './LearningPage.css';
 
 export default function LearningPage() {
@@ -8,20 +16,37 @@ export default function LearningPage() {
   const [selectedSubjectId, setSelectedSubjectId] = useState<string>('');
   const [topics, setTopics] = useState<LearningTopic[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [showModal, setShowModal] = useState(false);
+  const [showTopicModal, setShowTopicModal] = useState(false);
+  const [showSubjectModal, setShowSubjectModal] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
+  const [newSubjectName, setNewSubjectName] = useState('');
   const [newTopicName, setNewTopicName] = useState('');
   const [newTopicDifficulty, setNewTopicDifficulty] = useState<'easy' | 'medium' | 'hard'>('medium');
 
   useEffect(() => {
+    let current = true;
     getLearningSubjects().then(subjs => {
+      if (!current) return;
       setSubjects(subjs);
-      if (subjs.length > 0 && !selectedSubjectId) {
-        setSelectedSubjectId(subjs[0].id);
-      }
+      setSelectedSubjectId(selected => subjs.some(subject => subject.id === selected)
+        ? selected
+        : subjs[0]?.id || '');
     });
-    getLearningTopics().then(tops => setTopics(tops));
+    return () => { current = false; };
+  }, []);
+
+  useEffect(() => {
+    let current = true;
+    if (!selectedSubjectId) {
+      setTopics([]);
+      return () => { current = false; };
+    }
+    getLearningTopics(selectedSubjectId).then(result => {
+      if (current) setTopics(result);
+    });
+    return () => { current = false; };
   }, [selectedSubjectId]);
 
   const showToast = (msg: string) => {
@@ -45,49 +70,103 @@ export default function LearningPage() {
       target.status === 'completed' ? 'not_started' :
       target.status === 'not_started' ? 'in_progress' : 'completed';
 
-    // Optimistic update
-    setTopics(prev => {
-      const updated = prev.map(t => t.id === topicId ? { ...t, status: nextStatus } : t);
+    const updatedTopic = await updateTopicStatus(topicId, nextStatus);
+    if (!updatedTopic) {
+      showToast('Could not update this topic. Please try again.');
+      return;
+    }
+    setTopics(prev => prev.map(topic => topic.id === topicId ? updatedTopic : topic));
+    const nextTopics = topics.map(topic => topic.id === topicId ? updatedTopic : topic);
+    const completedCount = nextTopics.filter(topic => topic.status === 'completed').length;
+    const totalCount = nextTopics.length;
+    setSubjects(prev => prev.map(subject => subject.id === selectedSubjectId ? {
+      ...subject,
+      completedTopics: completedCount,
+      totalTopics: totalCount,
+      progress: totalCount ? Math.round((completedCount / totalCount) * 100) : 0,
+    } : subject));
+  };
 
-      // Recalculate subject progress
-      const currentSubjectTopics = updated.filter(t => t.subjectId === currentSubject.id);
-      const completedCount = currentSubjectTopics.filter(t => t.status === 'completed').length;
-      const totalCount = Math.max(1, currentSubjectTopics.length);
-      const newProgress = Math.round((completedCount / totalCount) * 100);
-
-      setSubjects(sList => sList.map(s => s.id === currentSubject.id ? {
-        ...s,
-        completedTopics: completedCount,
-        totalTopics: totalCount,
-        progress: newProgress,
-      } : s));
-
-      return updated;
-    });
-
-    await updateTopicStatus(topicId, nextStatus);
+  const handleAddSubject = async (event: React.FormEvent) => {
+    event.preventDefault();
+    const name = newSubjectName.trim();
+    if (!name || saving) return;
+    setSaving(true);
+    const subject = await createLearningSubject({ name, icon: '📚', color: '#0066FF' });
+    setSaving(false);
+    if (!subject) {
+      showToast('Could not add this learning track. Please try again.');
+      return;
+    }
+    setSubjects(prev => [...prev, subject]);
+    setSelectedSubjectId(subject.id);
+    setNewSubjectName('');
+    setShowSubjectModal(false);
+    showToast(`Learning track “${subject.name}” added.`);
   };
 
   const handleAddTopic = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newTopicName.trim() || !currentSubject.id) return;
+    const subject = currentSubject;
+    if (!newTopicName.trim() || !subject || saving) return;
 
-    const newTop = await createTopic(currentSubject.id, {
+    setSaving(true);
+    const newTop = await createTopic(subject.id, {
       name: newTopicName.trim(),
       difficulty: newTopicDifficulty,
     });
+    setSaving(false);
 
     if (newTop) {
       setTopics(prev => [...prev, newTop]);
-      setSubjects(sList => sList.map(s => s.id === currentSubject.id ? {
+      setSubjects(sList => sList.map(s => s.id === subject.id ? {
         ...s,
         totalTopics: s.totalTopics + 1,
       } : s));
-      showToast(`✓ Topic "${newTop.name}" added to ${currentSubject.name}`);
+      showToast(`Topic “${newTop.name}” added to ${subject.name}.`);
+    } else {
+      showToast('Could not add this topic. Please try again.');
+      return;
     }
 
     setNewTopicName('');
-    setShowModal(false);
+    setShowTopicModal(false);
+  };
+
+  const handleDeleteSubject = async (subject: LearningSubject) => {
+    if (!window.confirm(`Delete “${subject.name}” and all its topics? This cannot be undone.`)) return;
+    const deleted = await deleteLearningSubject(subject.id);
+    if (!deleted) {
+      showToast('Could not delete this learning track. Please try again.');
+      return;
+    }
+    const remaining = subjects.filter(item => item.id !== subject.id);
+    setSubjects(remaining);
+    if (selectedSubjectId === subject.id) setSelectedSubjectId(remaining[0]?.id || '');
+    showToast(`Learning track “${subject.name}” deleted.`);
+  };
+
+  const handleDeleteTopic = async (topic: LearningTopic) => {
+    if (!window.confirm(`Delete “${topic.name}”? This cannot be undone.`)) return;
+    const deleted = await deleteLearningTopic(topic.id);
+    if (!deleted) {
+      showToast('Could not delete this topic. Please try again.');
+      return;
+    }
+    const remaining = topics.filter(item => item.id !== topic.id);
+    setTopics(remaining);
+    setSubjects(prev => prev.map(subject => {
+      if (subject.id !== topic.subjectId) return subject;
+      const completedTopics = remaining.filter(item => item.status === 'completed').length;
+      return {
+        ...subject,
+        totalTopics: remaining.length,
+        completedTopics,
+        progress: remaining.length ? Math.round((completedTopics / remaining.length) * 100) : 0,
+        totalTimeMinutes: remaining.reduce((total, item) => total + item.timeSpentMinutes, 0),
+      };
+    }));
+    showToast(`Topic “${topic.name}” deleted.`);
   };
 
   const totalTimeHours = Math.round(subjects.reduce((acc, s) => acc + s.totalTimeMinutes, 0) / 60);
@@ -105,7 +184,8 @@ export default function LearningPage() {
           <h1 className="page-title">Learning & Skill Architecture</h1>
           <p className="page-subtitle">Curated curriculum and technical mastery roadmap</p>
         </div>
-        <div className="learning-quick-stats">
+        <div className="learning-header-actions">
+          <div className="learning-quick-stats">
           <div className="quick-stat-badge">
             <span className="quick-stat-icon">⏱️</span>
             <span><strong>{totalTimeHours}h</strong> Studied</span>
@@ -114,6 +194,10 @@ export default function LearningPage() {
             <span className="quick-stat-icon">📚</span>
             <span><strong>{subjects.length}</strong> Tracks</span>
           </div>
+          </div>
+          <button className="btn btn-primary" onClick={() => setShowSubjectModal(true)}>
+            ➕ Add Track
+          </button>
         </div>
       </div>
 
@@ -141,6 +225,17 @@ export default function LearningPage() {
                 <span className="subject-progress-pill" style={{ color: subj.color, borderColor: `${subj.color}40` }}>
                   {subj.progress}%
                 </span>
+                <button
+                  className="icon-button subject-delete-button"
+                  aria-label={`Delete ${subj.name} learning track`}
+                  title="Delete learning track"
+                  onClick={event => {
+                    event.stopPropagation();
+                    void handleDeleteSubject(subj);
+                  }}
+                >
+                  ×
+                </button>
               </div>
               <h3 className="subject-card-title">{subj.name}</h3>
               <p className="subject-card-stats">
@@ -181,7 +276,7 @@ export default function LearningPage() {
                   onChange={e => setSearchQuery(e.target.value)}
                 />
               </div>
-              <button className="btn btn-primary sm" onClick={() => setShowModal(true)}>
+              <button className="btn btn-primary sm" onClick={() => setShowTopicModal(true)}>
                 ➕ Add Topic
               </button>
             </div>
@@ -191,7 +286,7 @@ export default function LearningPage() {
         <div className="topics-list">
           {filteredTopics.length === 0 ? (
             <div className="empty-state">
-              <p>No topics matching "{searchQuery}"</p>
+              <p>{searchQuery ? `No topics match “${searchQuery}”.` : 'No topics in this track yet. Add one to begin.'}</p>
             </div>
           ) : (
             filteredTopics.map((topic, index) => (
@@ -219,6 +314,14 @@ export default function LearningPage() {
                     {topic.status === 'in_progress' && '⏳ In Progress'}
                     {topic.status === 'not_started' && '⭕ Mark Started'}
                   </button>
+                  <button
+                    className="icon-button topic-delete-button"
+                    aria-label={`Delete topic ${topic.name}`}
+                    title="Delete topic"
+                    onClick={() => void handleDeleteTopic(topic)}
+                  >
+                    ×
+                  </button>
                 </div>
               </div>
             ))
@@ -230,18 +333,21 @@ export default function LearningPage() {
           <div style={{ fontSize: '2.5rem', marginBottom: 'var(--space-2)' }}>📚</div>
           <h2 style={{ fontSize: 'var(--text-lg)', fontWeight: '600', marginBottom: 'var(--space-1)' }}>No Learning Tracks Established</h2>
           <p style={{ color: 'var(--evo-text-secondary)', fontSize: 'var(--text-sm)', maxWidth: '440px', margin: '0 auto' }}>
-            No curriculum tracks or topics have been recorded yet. Connect your learning roadmaps to begin tracking technical mastery.
+            Add a learning track to organize subjects, then add topics and track your progress.
           </p>
+          <button className="btn btn-primary" style={{ marginTop: 'var(--space-5)' }} onClick={() => setShowSubjectModal(true)}>
+            ➕ Add Your First Track
+          </button>
         </div>
       )}
 
       {/* Add Topic Modal */}
-      {showModal && currentSubject && (
-        <div className="modal-overlay" onClick={() => setShowModal(false)}>
+      {showTopicModal && currentSubject && (
+        <div className="modal-overlay" onClick={() => setShowTopicModal(false)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <h2 className="modal-title">Add Topic to {currentSubject.name}</h2>
-              <button className="modal-close" onClick={() => setShowModal(false)}>✕</button>
+              <button className="modal-close" onClick={() => setShowTopicModal(false)}>✕</button>
             </div>
             <form onSubmit={handleAddTopic}>
               <div className="modal-body">
@@ -271,8 +377,40 @@ export default function LearningPage() {
                 </div>
               </div>
               <div className="modal-footer">
-                <button type="button" className="btn btn-secondary" onClick={() => setShowModal(false)}>Cancel</button>
-                <button type="submit" className="btn btn-primary">Add Topic</button>
+                <button type="button" className="btn btn-secondary" onClick={() => setShowTopicModal(false)}>Cancel</button>
+                <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Adding…' : 'Add Topic'}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {showSubjectModal && (
+        <div className="modal-overlay" onClick={() => setShowSubjectModal(false)}>
+          <div className="modal" onClick={event => event.stopPropagation()}>
+            <div className="modal-header">
+              <h2 className="modal-title">Add Learning Track</h2>
+              <button className="modal-close" onClick={() => setShowSubjectModal(false)}>✕</button>
+            </div>
+            <form onSubmit={handleAddSubject}>
+              <div className="modal-body">
+                <div className="form-group">
+                  <label className="form-label" htmlFor="learning-track-name">Track name *</label>
+                  <input
+                    id="learning-track-name"
+                    className="form-input"
+                    placeholder="e.g. Java, Data Structures, Product Design"
+                    value={newSubjectName}
+                    onChange={event => setNewSubjectName(event.target.value)}
+                    maxLength={100}
+                    required
+                    autoFocus
+                  />
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setShowSubjectModal(false)}>Cancel</button>
+                <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Adding…' : 'Add Track'}</button>
               </div>
             </form>
           </div>

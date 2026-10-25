@@ -17,7 +17,7 @@ const CHAT_STORAGE_KEY = 'evo_chat_history';
 const initialWelcomeMsg: AiMessage = {
   id: 'msg_initial',
   role: 'assistant',
-  content: "Greetings Vinay. I am EVO, your personal operating system strategic advisor. I'm connected live to your database metrics, habit streaks, and vision goals. How can I assist your execution today?",
+  content: 'Hi Vinay. I can help you plan your day, review your goals, and understand your progress. What would you like to work on?',
   timestamp: new Date().toISOString(),
 };
 
@@ -149,7 +149,7 @@ export default function AiChatPage() {
                   <span className="typing-dot" /><span className="typing-dot" /><span className="typing-dot" />
                   Synthesizing strategy...
                 </span>
-              ) : 'Active Reasoning Online • Zero Excuses Mode'}
+              ) : 'Personal AI coach'}
             </p>
           </div>
         </div>
