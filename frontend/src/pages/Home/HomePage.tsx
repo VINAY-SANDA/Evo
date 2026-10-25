@@ -42,7 +42,7 @@ export default function HomePage() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [habits, setHabits] = useState<Habit[]>([]);
   const [aiInsight, setAiInsight] = useState<string>('');
-  const [overallScore, setOverallScore] = useState<number>(75);
+  const [overallScore, setOverallScore] = useState<number>(0);
   const [todaySpent, setTodaySpent] = useState<number>(0);
   const [scores, setScores] = useState<ProgressScore[]>([]);
   const [savings, setSavings] = useState<{
@@ -50,9 +50,9 @@ export default function HomePage() {
     targetAmount: number;
     progress: number;
   }>({
-    currentAmount: 42000,
-    targetAmount: 100000,
-    progress: 42,
+    currentAmount: 0,
+    targetAmount: 0,
+    progress: 0,
   });
 
   useEffect(() => {
@@ -65,7 +65,7 @@ export default function HomePage() {
     getDashboardData().then(dash => {
       if (dash) {
         if (dash.aiInsight) setAiInsight(dash.aiInsight);
-        if (dash.overallScore) setOverallScore(dash.overallScore);
+        if (dash.overallScore !== undefined) setOverallScore(dash.overallScore);
         if (dash.todayStats?.todaySpend !== undefined) {
           setTodaySpent(dash.todayStats.todaySpend);
         }
@@ -76,7 +76,7 @@ export default function HomePage() {
       if (fin.savingsGoals && fin.savingsGoals.length > 0) {
         const sg = fin.savingsGoals[0];
         const cur = Number(sg.currentAmount) || 0;
-        const tgt = Number(sg.targetAmount) || 100000;
+        const tgt = Number(sg.targetAmount) || 0;
         const pct = tgt > 0 ? Math.round((cur / tgt) * 100) : 0;
         setSavings({ currentAmount: cur, targetAmount: tgt, progress: pct });
       }
@@ -247,22 +247,35 @@ export default function HomePage() {
               Details →
             </span>
           </div>
-          <div className="savings-display">
-            <div className="savings-amounts">
-              <span className="savings-current">₹{savings.currentAmount.toLocaleString()}</span>
-              <span className="savings-target">/ ₹{savings.targetAmount.toLocaleString()}</span>
+          {savings.targetAmount > 0 ? (
+            <div className="savings-display">
+              <div className="savings-amounts">
+                <span className="savings-current">₹{savings.currentAmount.toLocaleString()}</span>
+                <span className="savings-target">/ ₹{savings.targetAmount.toLocaleString()}</span>
+              </div>
+              <div className="progress-bar lg">
+                <div
+                  className="progress-bar-fill green animated"
+                  style={{ width: `${savings.progress}%` }}
+                />
+              </div>
+              <div className="savings-meta">
+                <span className="savings-percent">{savings.progress}%</span>
+                <span className="savings-remaining">₹{Math.max(0, savings.targetAmount - savings.currentAmount).toLocaleString()} remaining</span>
+              </div>
             </div>
-            <div className="progress-bar lg">
-              <div
-                className="progress-bar-fill green animated"
-                style={{ width: `${savings.progress}%` }}
-              />
+          ) : (
+            <div style={{ textAlign: 'center', padding: 'var(--space-6) var(--space-4)', color: 'var(--evo-text-secondary)' }}>
+              <p style={{ margin: '0 0 var(--space-3) 0', fontSize: 'var(--text-sm)' }}>No active capital targets established.</p>
+              <button
+                className="btn btn-secondary btn-sm"
+                onClick={() => navigate('/finance')}
+                style={{ fontSize: 'var(--text-xs)' }}
+              >
+                Set Capital Target →
+              </button>
             </div>
-            <div className="savings-meta">
-              <span className="savings-percent">{savings.progress}%</span>
-              <span className="savings-remaining">₹{Math.max(0, savings.targetAmount - savings.currentAmount).toLocaleString()} remaining</span>
-            </div>
-          </div>
+          )}
         </section>
 
         {/* ── Goal Progress ── */}

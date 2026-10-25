@@ -11,30 +11,10 @@ import path from 'path';
 dotenv.config();
 
 // Default in-memory fallback dataset in case backend HTTP is not running
-let localTasks = [
-  { id: 'task_001', title: 'Solve 2 DSA problems — Trees', status: 'todo', priority: 'high', dueDate: '2026-10-25' },
-  { id: 'task_002', title: 'Study Java — Multithreading', status: 'completed', priority: 'high', dueDate: '2026-10-25' },
-  { id: 'task_003', title: 'Contact 5 prospects — Vyralabs', status: 'todo', priority: 'high', dueDate: '2026-10-25' },
-];
-
-let localGoals = [
-  { id: 'goal_001', title: 'Get Software Engineering Job', progress: 42, deadline: '2027-06-30', category: 'career' },
-  { id: 'goal_002', title: 'Master Java & Spring Boot', progress: 78, deadline: '2027-03-31', category: 'education' },
-  { id: 'goal_003', title: 'Launch Vyralabs', progress: 63, deadline: '2027-01-31', category: 'business' },
-];
-
-let localHabits = [
-  { id: 'hab_001', name: 'DSA Practice', streak: 14, completedToday: true, icon: '🧩' },
-  { id: 'hab_002', name: 'Study Java', streak: 21, completedToday: true, icon: '☕' },
-  { id: 'hab_003', name: 'Workout', streak: 7, completedToday: false, icon: '💪' },
-];
-
-let localMemories = [
-  'Prefers studying Java in morning (9-11 AM)',
-  'Master Trees & Graphs before Dynamic Programming',
-  'Vyralabs client focus is education niche',
-  'Finds evening workouts more effective than morning ones',
-];
+let localTasks: any[] = [];
+let localGoals: any[] = [];
+let localHabits: any[] = [];
+let localMemories: string[] = [];
 
 export function createEvoMcpServer(customApiUrl?: string): Server {
   const EVO_API_URL = customApiUrl || process.env.EVO_API_URL || `http://localhost:${process.env.PORT || 5000}/api`;
@@ -232,11 +212,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const remote = await fetchEvo<any>('/dashboard');
         const data = remote || {
           user: { name: 'Vinay', aiTone: 'rigorous' },
-          overallScore: 75,
-          weeklyChange: 7,
-          todayStats: { tasksCompleted: 1, totalTasks: 3, habitsCompleted: 2, totalHabits: 3, todaySpend: 350 },
+          overallScore: 0,
+          weeklyChange: 0,
+          todayStats: { tasksCompleted: 0, totalTasks: 0, habitsCompleted: 0, totalHabits: 0, todaySpend: 0 },
           topStreaks: localHabits.map(h => ({ name: h.name, streak: h.streak, icon: h.icon })),
-          aiInsight: 'Your DSA streak is at 14 days. Protect it today. Outreach for Vyralabs is your highest leverage action.',
+          aiInsight: 'Your operational dashboard is online. Add goals, tasks, and habits to build execution metrics.',
         };
         return {
           content: [{ type: 'text', text: JSON.stringify(data, null, 2) }],
@@ -341,11 +321,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case 'evo_get_finance_summary': {
         const remote = await fetchEvo<any>('/finance/summary');
         const summary = remote || {
-          totalIncome: 30000,
-          totalExpenses: 5900,
-          netSavings: 24100,
-          topCategory: 'food (₹3,200)',
-          emergencyFundProgress: '37%',
+          totalIncome: 0,
+          totalExpenses: 0,
+          netSavings: 0,
+          topCategory: 'None',
+          emergencyFundProgress: '0%',
         };
         return {
           content: [{ type: 'text', text: JSON.stringify(summary, null, 2) }],
@@ -398,7 +378,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           method: 'POST',
           body: JSON.stringify({ message: query }),
         });
-        const reply = remote?.content || `Protocol for "${query}": Maintain focus on Tree Traversals and prioritize 5 client outreach messages for Vyralabs today.`;
+        const reply = remote?.content || `No action protocol active for "${query}". Define goals and tasks to generate personalized insights.`;
         return {
           content: [{ type: 'text', text: reply }],
         };

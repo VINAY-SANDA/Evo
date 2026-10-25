@@ -19,7 +19,7 @@ export default function FinancePage() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [incomes, setIncomes] = useState<any[]>([]);
   const [savingsGoals, setSavingsGoals] = useState<any[]>([]);
-  const [totalIncome, setTotalIncome] = useState<number>(30000);
+  const [totalIncome, setTotalIncome] = useState<number>(0);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const [formData, setFormData] = useState<{
@@ -28,7 +28,7 @@ export default function FinancePage() {
     description: string;
     date: string;
   }>({
-    amount: 350,
+    amount: 0,
     category: 'food',
     description: '',
     date: new Date().toISOString().split('T')[0],
@@ -77,7 +77,7 @@ export default function FinancePage() {
     }
     setShowModal(false);
     setFormData({
-      amount: 350,
+      amount: 0,
       category: 'food',
       description: '',
       date: new Date().toISOString().split('T')[0],

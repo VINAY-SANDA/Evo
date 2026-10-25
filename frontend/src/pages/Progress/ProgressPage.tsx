@@ -28,8 +28,13 @@ export default function ProgressPage() {
   }, []);
 
   const overallScore = scores.length > 0
-    ? Math.round(scores.reduce((s, c) => s + c.score, 0) / scores.length)
-    : 75;
+    ? (() => {
+        const activeScores = scores.filter(s => s.score > 0);
+        return activeScores.length > 0
+          ? Math.round(activeScores.reduce((s, c) => s + c.score, 0) / activeScores.length)
+          : 0;
+      })()
+    : 0;
 
   const completedTasksCount = tasks.filter(t => t.status === 'completed').length;
   const activeGoalsCount = goals.filter(g => g.status === 'active').length;
@@ -85,7 +90,7 @@ export default function ProgressPage() {
 
           <div className="progress-hero-info">
             <div className="badge badge-primary" style={{ alignSelf: 'flex-start', marginBottom: 'var(--space-2)' }}>
-              ⚡ High Momentum (+7% this week)
+              {overallScore >= 75 ? '⚡ High Momentum' : overallScore > 0 ? '📈 Active Trajectory' : '🎯 Baseline Initialized'}
             </div>
             <h2 className="progress-hero-title">Overall Life Performance Score</h2>
             <p className="progress-hero-desc">
@@ -126,8 +131,8 @@ export default function ProgressPage() {
                 </span>
                 <div>
                   <h3 className="category-name">{cat.category}</h3>
-                  <span className={`category-delta ${cat.change >= 0 ? 'positive' : 'negative'}`}>
-                    {cat.change >= 0 ? `▲ +${cat.change}%` : `▼ ${cat.change}%`} vs last week
+                  <span className={`category-delta ${cat.change > 0 ? 'positive' : cat.change < 0 ? 'negative' : ''}`}>
+                    {cat.change > 0 ? `▲ +${cat.change}% vs last week` : cat.change < 0 ? `▼ ${cat.change}% vs last week` : `• Baseline trajectory`}
                   </span>
                 </div>
               </div>
@@ -150,7 +155,7 @@ export default function ProgressPage() {
 
             <div className="category-progress-footer">
               <span className="category-status-text">
-                {cat.score >= 80 ? '🌟 Exceptional' : cat.score >= 70 ? '🟢 Strong Pace' : '🟡 Needs Attention'}
+                {cat.score >= 80 ? '🌟 Exceptional' : cat.score >= 70 ? '🟢 Strong Pace' : cat.score > 0 ? '🟡 In Progress' : '⚪ Not Started'}
               </span>
               <button
                 className="category-inspect-btn"

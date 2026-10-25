@@ -108,7 +108,7 @@ app.post('/api/ai/chat', async (req: Request, res: Response) => {
   let todayTasks: any[] = [];
   let userHabits: any[] = [];
   let storedMemories: string[] = [];
-
+  let monthlySavings = { income: 0, expenses: 0, net: 0 };
   try {
     const goalsRes = await query('SELECT title, progress, deadline FROM goals WHERE user_id = $1 AND status = $2 LIMIT 5', [DEFAULT_USER_ID, 'active']);
     activeGoals = goalsRes.rows.map((g: any) => ({ title: g.title, progress: Number(g.progress) || 0, deadline: g.deadline }));
@@ -121,38 +121,28 @@ app.post('/api/ai/chat', async (req: Request, res: Response) => {
 
     const memsRes = await query('SELECT text FROM memories WHERE user_id = $1 ORDER BY importance DESC LIMIT 5', [DEFAULT_USER_ID]);
     storedMemories = memsRes.rows.map((m: any) => m.text);
+
+    const finRes = await query(
+      `SELECT
+         COALESCE((SELECT SUM(amount) FROM incomes WHERE user_id = $1), 0) as income,
+         COALESCE((SELECT SUM(amount) FROM expenses WHERE user_id = $1), 0) as expense`,
+      [DEFAULT_USER_ID]
+    );
+    const inc = Number(finRes.rows[0]?.income) || 0;
+    const exp = Number(finRes.rows[0]?.expense) || 0;
+    monthlySavings = { income: inc, expenses: exp, net: inc - exp };
   } catch (err) {
-    console.warn('Could not query DB for AI chat context, using fallback context:', err);
+    console.warn('Could not query DB for AI chat context:', err);
   }
 
   const liveContext: AiContext = context || {
     userName: 'Vinay',
     tone: 'rigorous',
-    activeGoals: activeGoals.length > 0 ? activeGoals : [
-      { title: 'Get Software Engineering Job', progress: 42, deadline: '2027-06-30' },
-      { title: 'Master Java & Spring Boot', progress: 78, deadline: '2027-03-31' },
-      { title: 'Launch Vyralabs', progress: 63, deadline: '2027-01-31' },
-    ],
-    todayTasks: todayTasks.length > 0 ? todayTasks : [
-      { title: 'Solve 2 DSA problems — Trees', status: 'todo', priority: 'high' },
-      { title: 'Study Java — Multithreading', status: 'completed', priority: 'high' },
-      { title: 'Contact 5 prospects — Vyralabs', status: 'todo', priority: 'high' },
-    ],
-    habits: userHabits.length > 0 ? userHabits : [
-      { name: 'DSA Practice', currentStreak: 14, completedToday: true },
-      { name: 'Study Java', currentStreak: 21, completedToday: true },
-      { name: 'Workout', currentStreak: 7, completedToday: false },
-    ],
-    monthlySavings: {
-      income: 30000,
-      expenses: 5900,
-      net: 24100,
-    },
-    memories: storedMemories.length > 0 ? storedMemories : [
-      'Prefers studying Java in the morning between 9-11 AM',
-      'Focus on Trees and Graphs before DP in DSA',
-      'Vyralabs target market is small businesses in education',
-    ],
+    activeGoals,
+    todayTasks,
+    habits: userHabits,
+    monthlySavings,
+    memories: storedMemories,
   };
 
   const response = await getAiResponse(message || '', liveContext);
@@ -332,19 +322,24 @@ app.get('/api/dashboard', async (_req: Request, res: Response) => {
     }));
 
     // 6. Overall score
-    const taskPct = tasksTotal > 0 ? (tasksCompleted / tasksTotal) * 100 : 75;
-    const habitPct = totalHabits > 0 ? (habitsCompleted / totalHabits) * 100 : 80;
-    const overallScore = Math.round((taskPct + habitPct) / 2);
+    const taskPct = tasksTotal > 0 ? (tasksCompleted / tasksTotal) * 100 : 0;
+    const habitPct = totalHabits > 0 ? (habitsCompleted / totalHabits) * 100 : 0;
+    const hasActivity = tasksTotal > 0 || totalHabits > 0;
+    const overallScore = hasActivity
+      ? Math.round((taskPct + habitPct) / (tasksTotal > 0 && totalHabits > 0 ? 2 : 1))
+      : 0;
 
     const remainingTasks = Math.max(0, tasksTotal - tasksCompleted);
     const aiInsight = remainingTasks > 0
       ? `Good day, ${user.name}. You have ${remainingTasks} task${remainingTasks > 1 ? 's' : ''} remaining today. Focus on your highest-priority items to maintain your momentum.`
-      : `Excellent work, ${user.name}! You've completed your planned tasks for today. Continue building consistent habits.`;
+      : totalHabits > 0 || tasksTotal > 0
+      ? `All planned execution for today is up to date, ${user.name}. Continue building consistent momentum.`
+      : `Welcome to EVO, ${user.name}. Initialize your first goals, habits, and tasks to begin tracking execution velocity.`;
 
     res.json({
       user,
-      overallScore: Math.max(40, Math.min(100, overallScore)),
-      weeklyChange: 7,
+      overallScore: Math.min(100, Math.max(0, overallScore)),
+      weeklyChange: 0,
       todayStats: {
         tasksCompleted,
         totalTasks: tasksTotal,

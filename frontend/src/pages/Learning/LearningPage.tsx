@@ -29,18 +29,9 @@ export default function LearningPage() {
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  const currentSubject = subjects.find(s => s.id === selectedSubjectId) || subjects[0] || {
-    id: 'sub_default',
-    name: 'Curriculum',
-    icon: '📚',
-    color: '#2997FF',
-    progress: 50,
-    totalTopics: 10,
-    completedTopics: 5,
-    totalTimeMinutes: 600,
-  };
+  const currentSubject = subjects.find(s => s.id === selectedSubjectId) || subjects[0] || null;
 
-  const subjectTopics = topics.filter(t => t.subjectId === currentSubject.id);
+  const subjectTopics = currentSubject ? topics.filter(t => t.subjectId === currentSubject.id) : [];
 
   const filteredTopics = subjectTopics.filter(t => 
     t.name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -129,7 +120,7 @@ export default function LearningPage() {
       {/* Subject Tabs / Cards Carousel */}
       <div className="subject-cards-grid">
         {subjects.map(subj => {
-          const isSelected = subj.id === currentSubject.id;
+          const isSelected = subj.id === currentSubject?.id;
           return (
             <div
               key={subj.id}
@@ -167,33 +158,34 @@ export default function LearningPage() {
       </div>
 
       {/* Detailed Subject Roadmap Section */}
-      <div className="card subject-details-container animate-fade-in-up">
-        <div className="subject-details-header">
-          <div className="flex items-center gap-3">
-            <span className="subject-large-icon">{currentSubject.icon}</span>
-            <div>
-              <h2 className="subject-title">{currentSubject.name} Curriculum</h2>
-              <span className="subject-meta">
-                {currentSubject.completedTopics} / {currentSubject.totalTopics} Completed • Track progress
-              </span>
+      {currentSubject ? (
+        <div className="card subject-details-container animate-fade-in-up">
+          <div className="subject-details-header">
+            <div className="flex items-center gap-3">
+              <span className="subject-large-icon">{currentSubject.icon}</span>
+              <div>
+                <h2 className="subject-title">{currentSubject.name} Curriculum</h2>
+                <span className="subject-meta">
+                  {currentSubject.completedTopics} / {currentSubject.totalTopics} Completed • Track progress
+                </span>
+              </div>
             </div>
-          </div>
 
-          <div className="flex items-center gap-3">
-            <div className="topic-search-box">
-              <input
-                type="text"
-                placeholder="Search topics..."
-                className="form-input sm"
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-              />
+            <div className="flex items-center gap-3">
+              <div className="topic-search-box">
+                <input
+                  type="text"
+                  placeholder="Search topics..."
+                  className="form-input sm"
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                />
+              </div>
+              <button className="btn btn-primary sm" onClick={() => setShowModal(true)}>
+                ➕ Add Topic
+              </button>
             </div>
-            <button className="btn btn-primary sm" onClick={() => setShowModal(true)}>
-              ➕ Add Topic
-            </button>
           </div>
-        </div>
 
         {/* Topic List */}
         <div className="topics-list">
@@ -233,9 +225,18 @@ export default function LearningPage() {
           )}
         </div>
       </div>
+      ) : (
+        <div className="card animate-fade-in-up" style={{ textAlign: 'center', padding: 'var(--space-10) var(--space-4)' }}>
+          <div style={{ fontSize: '2.5rem', marginBottom: 'var(--space-2)' }}>📚</div>
+          <h2 style={{ fontSize: 'var(--text-lg)', fontWeight: '600', marginBottom: 'var(--space-1)' }}>No Learning Tracks Established</h2>
+          <p style={{ color: 'var(--evo-text-secondary)', fontSize: 'var(--text-sm)', maxWidth: '440px', margin: '0 auto' }}>
+            No curriculum tracks or topics have been recorded yet. Connect your learning roadmaps to begin tracking technical mastery.
+          </p>
+        </div>
+      )}
 
       {/* Add Topic Modal */}
-      {showModal && (
+      {showModal && currentSubject && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
             <div className="modal-header">

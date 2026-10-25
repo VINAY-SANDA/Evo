@@ -7,23 +7,15 @@ const defaultDailyReview: DailyReview = {
   id: 'daily_today',
   userId: '00000000-0000-0000-0000-000000000001',
   date: new Date().toISOString().split('T')[0],
-  completedTasks: 3,
-  totalTasks: 4,
-  completedHabits: 2,
-  totalHabits: 3,
-  score: 82,
-  aiSummary: 'Daily momentum is strong. High-leverage architecture tasks completed. Maintain evening focus to close all open loops.',
-  whatWentWell: [
-    'Successfully verified MCP server connectivity with Google Gemini',
-    'Maintained continuous focus on core systems without distraction',
-  ],
-  whatWentWrong: [
-    'Transition between deep engineering blocks took longer than scheduled',
-  ],
-  suggestions: [
-    'Schedule top 3 priority tasks during peak morning energy hours',
-    'Preserve evening shutdown ritual to recharge executive focus',
-  ],
+  completedTasks: 0,
+  totalTasks: 0,
+  completedHabits: 0,
+  totalHabits: 0,
+  score: 0,
+  aiSummary: 'No daily reflection logged yet today. Click "Add Reflection" above to document your needle-moving wins and focus friction.',
+  whatWentWell: [],
+  whatWentWrong: [],
+  suggestions: [],
 };
 
 const defaultWeeklyReview: WeeklyReview = {
@@ -31,20 +23,11 @@ const defaultWeeklyReview: WeeklyReview = {
   userId: '00000000-0000-0000-0000-000000000001',
   weekStart: new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0],
   weekEnd: new Date().toISOString().split('T')[0],
-  overallScore: 84,
-  categoryScores: [
-    { category: 'Career', score: 88, change: 4, icon: '💼', color: '#0A84FF' },
-    { category: 'Learning', score: 82, change: 3, icon: '📖', color: '#5E5CE6' },
-    { category: 'Finance', score: 90, change: 5, icon: '💰', color: '#30D158' },
-    { category: 'Health', score: 76, change: -1, icon: '❤️', color: '#FF453A' },
-  ],
-  biggestAchievement: 'Architected enterprise single-user authentication and full MCP tool suite',
-  biggestProblem: 'Balancing exploratory research with structured milestone execution',
-  nextWeekPriorities: [
-    'Complete full DSA graph problem track',
-    'Deploy production optimizations for EVO microservices',
-    'Maintain daily streak consistency across all core habits',
-  ],
+  overallScore: 0,
+  categoryScores: [],
+  biggestAchievement: 'No weekly retrospective completed yet.',
+  biggestProblem: 'None recorded.',
+  nextWeekPriorities: [],
 };
 
 export default function ReviewsPage() {
@@ -159,7 +142,9 @@ export default function ReviewsPage() {
               </div>
               <div className="daily-stat-box">
                 <span className="daily-stat-label">Velocity</span>
-                <span className="daily-stat-val">High (81%)</span>
+                <span className="daily-stat-val">
+                  {dailyReview.totalTasks > 0 ? `${Math.round((dailyReview.completedTasks / dailyReview.totalTasks) * 100)}%` : '0%'}
+                </span>
               </div>
             </div>
 
@@ -173,40 +158,58 @@ export default function ReviewsPage() {
           <div className="grid-2">
             <div className="card retro-column wins">
               <h3 className="retro-col-title">🏆 What Went Well</h3>
-              <ul className="retro-list">
-                {dailyReview.whatWentWell.map((item, i) => (
-                  <li key={i} className="retro-item win">
-                    <span className="retro-icon">✓</span>
-                    <span>{item}</span>
-                  </li>
-                ))}
-              </ul>
+              {dailyReview.whatWentWell && dailyReview.whatWentWell.length > 0 ? (
+                <ul className="retro-list">
+                  {dailyReview.whatWentWell.map((item, i) => (
+                    <li key={i} className="retro-item win">
+                      <span className="retro-icon">✓</span>
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p style={{ color: 'var(--evo-text-secondary)', fontSize: 'var(--text-sm)', padding: 'var(--space-2) 0' }}>
+                  No logged wins for this day yet.
+                </p>
+              )}
             </div>
 
             <div className="card retro-column gaps">
               <h3 className="retro-col-title">⚠️ What Went Wrong</h3>
-              <ul className="retro-list">
-                {dailyReview.whatWentWrong.map((item, i) => (
-                  <li key={i} className="retro-item gap">
-                    <span className="retro-icon">✗</span>
-                    <span>{item}</span>
-                  </li>
-                ))}
-              </ul>
+              {dailyReview.whatWentWrong && dailyReview.whatWentWrong.length > 0 ? (
+                <ul className="retro-list">
+                  {dailyReview.whatWentWrong.map((item, i) => (
+                    <li key={i} className="retro-item gap">
+                      <span className="retro-icon">✗</span>
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p style={{ color: 'var(--evo-text-secondary)', fontSize: 'var(--text-sm)', padding: 'var(--space-2) 0' }}>
+                  No blockers or focus drift logged.
+                </p>
+              )}
             </div>
           </div>
 
           {/* AI Suggestions for Tomorrow */}
           <div className="card suggestions-card">
             <h3 className="suggestions-title">💡 EVO Strategic Adjustments for Tomorrow</h3>
-            <div className="suggestions-grid">
-              {dailyReview.suggestions.map((sug, i) => (
-                <div key={i} className="suggestion-box">
-                  <span className="suggestion-num">0{i + 1}</span>
-                  <p className="suggestion-text">{sug}</p>
-                </div>
-              ))}
-            </div>
+            {dailyReview.suggestions && dailyReview.suggestions.length > 0 ? (
+              <div className="suggestions-grid">
+                {dailyReview.suggestions.map((sug, i) => (
+                  <div key={i} className="suggestion-box">
+                    <span className="suggestion-num">0{i + 1}</span>
+                    <p className="suggestion-text">{sug}</p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p style={{ color: 'var(--evo-text-secondary)', fontSize: 'var(--text-sm)', padding: 'var(--space-2) 0' }}>
+                Complete today's reflection using "Add Reflection" to generate prioritized adjustments.
+              </p>
+            )}
           </div>
         </div>
       ) : (
@@ -241,17 +244,23 @@ export default function ReviewsPage() {
           {/* Next Week Priorities */}
           <div className="card priorities-card">
             <h3 className="priorities-title">🎯 Next Week Key Directives</h3>
-            <div className="priorities-list">
-              {weeklyReview.nextWeekPriorities.map((p, idx) => (
-                <div key={idx} className="priority-item-card">
-                  <span className="priority-index">{idx + 1}</span>
-                  <span className="priority-text">{p}</span>
-                  <button className="btn btn-secondary sm" onClick={() => handleAddDirectiveToSchedule(p)}>
-                    Add to Schedule
-                  </button>
-                </div>
-              ))}
-            </div>
+            {weeklyReview.nextWeekPriorities && weeklyReview.nextWeekPriorities.length > 0 ? (
+              <div className="priorities-list">
+                {weeklyReview.nextWeekPriorities.map((p, idx) => (
+                  <div key={idx} className="priority-item-card">
+                    <span className="priority-index">{idx + 1}</span>
+                    <span className="priority-text">{p}</span>
+                    <button className="btn btn-secondary sm" onClick={() => handleAddDirectiveToSchedule(p)}>
+                      Add to Schedule
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p style={{ color: 'var(--evo-text-secondary)', fontSize: 'var(--text-sm)', padding: 'var(--space-4) 0', textAlign: 'center' }}>
+                No weekly priorities recorded yet.
+              </p>
+            )}
           </div>
         </div>
       )}

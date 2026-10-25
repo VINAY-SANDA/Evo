@@ -54,17 +54,10 @@ export default function ProjectsPage() {
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  const currentProject = projects.find(p => p.id === selectedProjectId) || projects[0] || {
-    id: 'proj_default',
-    name: 'Active Project',
-    description: 'Project details',
-    status: 'planning',
-    priority: 'high',
-    progress: 50,
-  };
+  const currentProject = projects.find(p => p.id === selectedProjectId) || projects[0] || null;
 
-  const projectMilestones = milestones.filter(m => m.projectId === currentProject.id);
-  const projectTasks = tasks.filter(t => t.projectId === currentProject.id);
+  const projectMilestones = currentProject ? milestones.filter(m => m.projectId === currentProject.id) : [];
+  const projectTasks = currentProject ? tasks.filter(t => t.projectId === currentProject.id) : [];
 
   const toggleMilestone = async (milestoneId: string) => {
     setMilestones(prev => {
@@ -81,11 +74,13 @@ export default function ProjectsPage() {
       });
 
       // Recalculate project progress
-      const currentMilestones = updated.filter(m => m.projectId === currentProject.id);
-      if (currentMilestones.length > 0) {
-        const doneCount = currentMilestones.filter(m => m.status === 'completed').length;
-        const newProgress = Math.round((doneCount / currentMilestones.length) * 100);
-        setProjects(pList => pList.map(p => p.id === currentProject.id ? { ...p, progress: newProgress } : p));
+      if (currentProject) {
+        const currentMilestones = updated.filter(m => m.projectId === currentProject.id);
+        if (currentMilestones.length > 0) {
+          const doneCount = currentMilestones.filter(m => m.status === 'completed').length;
+          const newProgress = Math.round((doneCount / currentMilestones.length) * 100);
+          setProjects(pList => pList.map(p => p.id === currentProject.id ? { ...p, progress: newProgress } : p));
+        }
       }
 
       return updated;
@@ -123,7 +118,7 @@ export default function ProjectsPage() {
 
   const handleAddMilestone = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!milestoneTitle.trim() || !currentProject.id) return;
+    if (!milestoneTitle.trim() || !currentProject) return;
 
     const newM = await createProjectMilestone(currentProject.id, {
       title: milestoneTitle.trim(),
@@ -158,7 +153,7 @@ export default function ProjectsPage() {
       {/* Projects Overview Row */}
       <div className="projects-grid">
         {projects.map(proj => {
-          const isSelected = proj.id === currentProject.id;
+          const isSelected = proj.id === currentProject?.id;
           return (
             <div
               key={proj.id}
@@ -194,8 +189,9 @@ export default function ProjectsPage() {
       </div>
 
       {/* Detailed Project Workspace */}
-      <div className="card project-detail-view animate-fade-in-up">
-        <div className="project-detail-header">
+      {currentProject ? (
+        <div className="card project-detail-view animate-fade-in-up">
+          <div className="project-detail-header">
           <div>
             <div className="flex items-center gap-3">
               <h2 className="project-detail-title">{currentProject.name}</h2>
@@ -280,6 +276,18 @@ export default function ProjectsPage() {
           </div>
         </div>
       </div>
+      ) : (
+        <div className="card animate-fade-in-up" style={{ textAlign: 'center', padding: 'var(--space-10) var(--space-4)' }}>
+          <div style={{ fontSize: '2.5rem', marginBottom: 'var(--space-2)' }}>🚀</div>
+          <h2 style={{ fontSize: 'var(--text-lg)', fontWeight: '600', marginBottom: 'var(--space-1)' }}>No Active Projects Initialized</h2>
+          <p style={{ color: 'var(--evo-text-secondary)', fontSize: 'var(--text-sm)', maxWidth: '440px', margin: '0 auto var(--space-4) auto' }}>
+            Initialize your software ventures, engineering projects, or initiatives to track milestone completion.
+          </p>
+          <button className="btn btn-primary sm" onClick={() => setShowModal(true)}>
+            ➕ Create First Project
+          </button>
+        </div>
+      )}
 
       {/* New Project Modal */}
       {showModal && (
@@ -347,7 +355,7 @@ export default function ProjectsPage() {
       )}
 
       {/* Add Milestone Modal */}
-      {showMilestoneModal && (
+      {showMilestoneModal && currentProject && (
         <div className="modal-overlay" onClick={() => setShowMilestoneModal(false)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
