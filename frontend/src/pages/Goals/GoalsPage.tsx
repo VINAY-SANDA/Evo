@@ -67,17 +67,19 @@ export default function GoalsPage() {
     if (newGoal) {
       setGoals(prev => [newGoal, ...prev]);
       showToast(`✓ Goal "${newGoal.title}" created successfully`);
+      setShowModal(false);
+      setFormData({
+        title: '',
+        description: '',
+        category: 'career',
+        targetValue: 100,
+        unit: '%',
+        deadline: new Date(Date.now() + 90 * 86400000).toISOString().split('T')[0],
+        priority: 'high',
+      });
+    } else {
+      showToast(`❌ Failed to create goal. Check backend connection & console (F12).`);
     }
-    setShowModal(false);
-    setFormData({
-      title: '',
-      description: '',
-      category: 'career',
-      targetValue: 100,
-      unit: '%',
-      deadline: new Date(Date.now() + 90 * 86400000).toISOString().split('T')[0],
-      priority: 'high',
-    });
   };
 
   const toggleMilestone = (milestoneId: string, goalId: string) => {

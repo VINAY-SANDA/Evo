@@ -93,17 +93,19 @@ export default function TasksPage() {
     if (newTask) {
       setTasks(prev => [newTask, ...prev]);
       showToast(`✓ Task "${newTask.title}" added to planner`);
+      setShowModal(false);
+      setFormData({
+        title: '',
+        description: '',
+        dueDate: new Date().toISOString().split('T')[0],
+        dueTime: '10:00',
+        priority: 'high',
+        estimatedMinutes: 45,
+        category: 'Career',
+      });
+    } else {
+      showToast(`❌ Failed to create task. Check backend connection & console (F12).`);
     }
-    setShowModal(false);
-    setFormData({
-      title: '',
-      description: '',
-      dueDate: new Date().toISOString().split('T')[0],
-      dueTime: '10:00',
-      priority: 'high',
-      estimatedMinutes: 45,
-      category: 'Career',
-    });
   };
 
   return (

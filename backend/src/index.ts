@@ -36,7 +36,10 @@ app.use(cors({
     return callback(null, true);
   },
   credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
 }));
+app.options('*', cors());
 app.use(express.json());
 
 // ── Health Check ──

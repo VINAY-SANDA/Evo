@@ -17,11 +17,26 @@ import type {
   AiMessage,
 } from '../types';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const rawApiUrl = (import.meta.env.VITE_API_URL || '').trim();
+const isLocalhost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+const API_BASE_URL = rawApiUrl
+  ? rawApiUrl.replace(/\/+$/, '')
+  : isLocalhost
+    ? 'http://localhost:5000'
+    : '';
 
 async function apiRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T | null> {
+  if (!API_BASE_URL) {
+    console.error(
+      `[EVO API ERROR] VITE_API_URL is missing! Cannot call ${endpoint}.\n` +
+      `Please add VITE_API_URL (e.g. https://your-backend.onrender.com) to your Vercel Environment Variables and redeploy.`
+    );
+    return null;
+  }
+
+  const url = `${API_BASE_URL}${endpoint}`;
   try {
-    const res = await fetch(`${API_BASE_URL}${endpoint}`, {
+    const res = await fetch(url, {
       ...options,
       headers: {
         'Content-Type': 'application/json',
@@ -29,10 +44,13 @@ async function apiRequest<T>(endpoint: string, options: RequestInit = {}): Promi
       },
     });
     if (!res.ok) {
+      const errText = await res.text();
+      console.error(`[EVO API Error ${res.status}] ${url}:`, errText);
       return null;
     }
     return (await res.json()) as T;
-  } catch {
+  } catch (err) {
+    console.error(`[EVO Network/CORS Error] Failed to fetch ${url}:`, err);
     return null;
   }
 }
