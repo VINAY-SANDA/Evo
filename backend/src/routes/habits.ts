@@ -10,7 +10,7 @@ router.get('/', async (_req: Request, res: Response) => {
     const includeArchived = String(_req.query.includeArchived || '').toLowerCase() === 'true';
     const sql = `
       SELECT h.id, h.user_id as "userId", h.name, h.description, h.icon, h.color,
-             h.frequency, h.target, h.unit, h.current_streak as "currentStreak",
+             h.frequency, h.schedule_days as "scheduleDays", h.target, h.unit, h.current_streak as "currentStreak",
              h.longest_streak as "longestStreak", h.active,
              to_char(h.created_at, 'YYYY-MM-DD') as "createdAt",
              COALESCE(hl.completed, FALSE) as "completedToday"
@@ -50,17 +50,17 @@ router.patch('/:id/restore', (req: Request, res: Response) => setHabitActive(req
 // POST /api/habits
 router.post('/', async (req: Request, res: Response) => {
   try {
-    const { name, description, icon, color, frequency, target, unit } = req.body;
+    const { name, description, icon, color, frequency, scheduleDays, target, unit } = req.body;
     if (!name) return res.status(400).json({ error: 'name is required' });
 
     const sql = `
       INSERT INTO habits (
-        user_id, name, description, icon, color, frequency, target, unit,
+        user_id, name, description, icon, color, frequency, schedule_days, target, unit,
         current_streak, longest_streak, active
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 0, 0, TRUE)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 0, 0, TRUE)
       RETURNING id, user_id as "userId", name, description, icon, color,
-                frequency, target, unit, current_streak as "currentStreak",
+                frequency, schedule_days as "scheduleDays", target, unit, current_streak as "currentStreak",
                 longest_streak as "longestStreak", active,
                 to_char(created_at, 'YYYY-MM-DD') as "createdAt"
     `;
@@ -71,6 +71,7 @@ router.post('/', async (req: Request, res: Response) => {
       icon || '🎯',
       color || '#6C5CE7',
       frequency || 'daily',
+      Array.isArray(scheduleDays) ? [...new Set(scheduleDays.map(Number).filter((day: number) => Number.isInteger(day) && day >= 0 && day <= 6))] : null,
       Number(target) || 1,
       unit || 'times',
     ];
@@ -80,6 +81,25 @@ router.post('/', async (req: Request, res: Response) => {
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
+});
+
+router.get('/summary/weekly', async (_req: Request, res: Response) => {
+  try {
+    const result = await query(`
+      SELECT h.id, h.name, h.icon, h.current_streak as "currentStreak",
+        h.schedule_days as "scheduleDays",
+        COUNT(hl.id)::int as "completedDays"
+      FROM habits h
+      LEFT JOIN habit_logs hl ON hl.habit_id = h.id AND hl.log_date >= CURRENT_DATE - INTERVAL '6 days' AND hl.log_date <= CURRENT_DATE AND hl.completed = TRUE
+      WHERE h.user_id = $1 AND h.active = TRUE
+      GROUP BY h.id ORDER BY "completedDays" DESC, h.name`, [DEFAULT_USER_ID]);
+    const totalExpected = result.rows.reduce((sum: number, habit: any) => {
+      const expectedDays = Array.isArray(habit.scheduleDays) ? habit.scheduleDays.length : (habit.frequency === 'weekly' ? 1 : 7);
+      return sum + Math.min(expectedDays, 7);
+    }, 0);
+    const completed = result.rows.reduce((sum: number, habit: any) => sum + Number(habit.completedDays || 0), 0);
+    res.json({ habits: result.rows, completed, expected: totalExpected, completionRate: totalExpected ? Math.round(completed / totalExpected * 100) : 0 });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
 // POST /api/habits/:id/complete

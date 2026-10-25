@@ -14,7 +14,8 @@ router.get('/', async (req: Request, res: Response) => {
              due_time::text as "dueTime",
              priority, status, goal_id as "goalId", project_id as "projectId",
              category, estimated_minutes as "estimatedMinutes",
-             is_recurring as "isRecurring", is_ai_generated as "isAiGenerated",
+             is_recurring as "isRecurring", recurrence_frequency as "recurrenceFrequency",
+             is_ai_generated as "isAiGenerated",
              created_at as "createdAt", updated_at as "updatedAt"
       FROM tasks
       WHERE user_id = $1
@@ -53,7 +54,8 @@ router.get('/today', async (_req: Request, res: Response) => {
              due_time::text as "dueTime",
              priority, status, goal_id as "goalId", project_id as "projectId",
              category, estimated_minutes as "estimatedMinutes",
-             is_recurring as "isRecurring", is_ai_generated as "isAiGenerated",
+             is_recurring as "isRecurring", recurrence_frequency as "recurrenceFrequency",
+             is_ai_generated as "isAiGenerated",
              created_at as "createdAt", updated_at as "updatedAt"
       FROM tasks
       WHERE user_id = $1 AND due_date = CURRENT_DATE
@@ -69,21 +71,28 @@ router.get('/today', async (_req: Request, res: Response) => {
 // POST /api/tasks
 router.post('/', async (req: Request, res: Response) => {
   try {
-    const { title, description, dueDate, dueTime, priority, category, estimatedMinutes, isRecurring } = req.body;
+    const { title, description, dueDate, dueTime, priority, category, estimatedMinutes, isRecurring, recurrenceFrequency, projectId, goalId } = req.body;
     if (!title) return res.status(400).json({ error: 'title is required' });
+    const frequency = ['daily', 'weekly', 'weekdays', 'monthly'].includes(recurrenceFrequency) ? recurrenceFrequency : null;
+    const recurring = Boolean(frequency);
 
     const sql = `
+      WITH new_task AS (SELECT uuid_generate_v4() AS id)
       INSERT INTO tasks (
-        user_id, title, description, due_date, due_time,
-        priority, status, category, estimated_minutes, is_recurring
+        id, recurrence_series_id, user_id, title, description, due_date, due_time,
+        priority, status, category, estimated_minutes, is_recurring, recurrence_frequency, project_id, goal_id
       )
-      VALUES ($1, $2, $3, $4, $5, $6, 'todo', $7, $8, $9)
+      SELECT new_task.id, CASE WHEN $9 THEN new_task.id ELSE NULL END, $1, $2, $3, $4, $5, $6, 'todo', $7, $8, $9, $10, $11, $12
+      FROM new_task
+      WHERE ($11::uuid IS NULL OR EXISTS (SELECT 1 FROM projects WHERE id = $11 AND user_id = $1))
+        AND ($12::uuid IS NULL OR EXISTS (SELECT 1 FROM goals WHERE id = $12 AND user_id = $1))
       RETURNING id, user_id as "userId", title, description,
                 to_char(due_date, 'YYYY-MM-DD') as "dueDate",
                 due_time::text as "dueTime",
                 priority, status, category,
                 estimated_minutes as "estimatedMinutes",
-                is_recurring as "isRecurring", is_ai_generated as "isAiGenerated",
+                is_recurring as "isRecurring", recurrence_frequency as "recurrenceFrequency",
+                project_id as "projectId", goal_id as "goalId", is_ai_generated as "isAiGenerated",
                 created_at as "createdAt", updated_at as "updatedAt"
     `;
     const params = [
@@ -95,10 +104,14 @@ router.post('/', async (req: Request, res: Response) => {
       priority || 'medium',
       category || 'General',
       Number(estimatedMinutes) || 30,
-      Boolean(isRecurring),
+      recurring,
+      frequency,
+      projectId || null,
+      goalId || null,
     ];
 
     const result = await query(sql, params);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Project or goal not found' });
     res.status(201).json(result.rows[0]);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -119,13 +132,41 @@ router.post('/:id/toggle', async (req: Request, res: Response) => {
                 due_time::text as "dueTime",
                 priority, status, category,
                 estimated_minutes as "estimatedMinutes",
+                is_recurring as "isRecurring", recurrence_frequency as "recurrenceFrequency",
+                project_id as "projectId", goal_id as "goalId",
                 created_at as "createdAt", updated_at as "updatedAt"
     `;
     const result = await query(sql, [id, DEFAULT_USER_ID]);
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Task not found' });
     }
-    res.json(result.rows[0]);
+    const task = result.rows[0];
+    if (task.status === 'completed' && task.isRecurring && task.recurrenceFrequency) {
+      const nextDate = new Date(`${task.dueDate}T12:00:00Z`);
+      if (task.recurrenceFrequency === 'daily') nextDate.setUTCDate(nextDate.getUTCDate() + 1);
+      if (task.recurrenceFrequency === 'weekly') nextDate.setUTCDate(nextDate.getUTCDate() + 7);
+      if (task.recurrenceFrequency === 'weekdays') {
+        const weekday = nextDate.getUTCDay();
+        nextDate.setUTCDate(nextDate.getUTCDate() + (weekday === 5 ? 3 : weekday === 6 ? 2 : 1));
+      }
+      if (task.recurrenceFrequency === 'monthly') {
+        const dayOfMonth = nextDate.getUTCDate();
+        nextDate.setUTCDate(1);
+        nextDate.setUTCMonth(nextDate.getUTCMonth() + 1);
+        const lastDay = new Date(Date.UTC(nextDate.getUTCFullYear(), nextDate.getUTCMonth() + 1, 0)).getUTCDate();
+        nextDate.setUTCDate(Math.min(dayOfMonth, lastDay));
+      }
+      const dueDate = nextDate.toISOString().slice(0, 10);
+      await query(`
+        INSERT INTO tasks (recurrence_series_id, user_id, title, description, due_date, due_time,
+          priority, status, category, estimated_minutes, is_recurring, recurrence_frequency, project_id, goal_id)
+        SELECT recurrence_series_id, user_id, title, description, $1, due_time,
+          priority, 'todo', category, estimated_minutes, TRUE, recurrence_frequency, project_id, goal_id
+        FROM tasks WHERE id = $2 AND user_id = $3
+        ON CONFLICT (recurrence_series_id, due_date) WHERE recurrence_series_id IS NOT NULL DO NOTHING
+      `, [dueDate, id, DEFAULT_USER_ID]);
+    }
+    res.json(task);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

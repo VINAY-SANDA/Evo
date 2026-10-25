@@ -228,4 +228,83 @@ router.delete('/savings/:id', async (req: Request, res: Response) => {
   }
 });
 
+// Monthly category budgets. The same category/month pair is updated in place.
+router.get('/budgets', async (req: Request, res: Response) => {
+  try {
+    const month = /^\d{4}-\d{2}$/.test(String(req.query.month || '')) ? `${req.query.month}-01` : new Date().toISOString().slice(0, 7) + '-01';
+    const result = await query(`
+      SELECT b.id, b.category, to_char(b.month, 'YYYY-MM') as month,
+        b.limit_amount::float as "limitAmount", b.alert_percent as "alertPercent",
+        COALESCE(SUM(e.amount), 0)::float as spent
+      FROM finance_budgets b
+      LEFT JOIN expenses e ON e.user_id = b.user_id AND e.category = b.category
+        AND date_trunc('month', e.date) = b.month
+      WHERE b.user_id = $1 AND b.month = $2::date
+      GROUP BY b.id ORDER BY b.category`, [DEFAULT_USER_ID, month]);
+    res.json({ budgets: result.rows, month: month.slice(0, 7) });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+router.put('/budgets', async (req: Request, res: Response) => {
+  try {
+    const { category, month, limitAmount, alertPercent } = req.body;
+    if (!String(category || '').trim() || !/^\d{4}-\d{2}$/.test(String(month || '')) || !Number.isFinite(Number(limitAmount)) || Number(limitAmount) <= 0) {
+      return res.status(400).json({ error: 'category, month (YYYY-MM), and a positive limitAmount are required' });
+    }
+    const alert = Math.max(1, Math.min(100, Number(alertPercent) || 80));
+    const result = await query(`
+      INSERT INTO finance_budgets (user_id, category, month, limit_amount, alert_percent)
+      VALUES ($1, $2, ($3 || '-01')::date, $4, $5)
+      ON CONFLICT (user_id, category, month) DO UPDATE
+        SET limit_amount = EXCLUDED.limit_amount, alert_percent = EXCLUDED.alert_percent
+      RETURNING id, category, to_char(month, 'YYYY-MM') as month,
+        limit_amount::float as "limitAmount", alert_percent as "alertPercent"
+    `, [DEFAULT_USER_ID, String(category).trim(), month, Number(limitAmount), alert]);
+    res.status(201).json(result.rows[0]);
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+router.delete('/budgets/:id', async (req: Request, res: Response) => {
+  try {
+    const result = await query('DELETE FROM finance_budgets WHERE id = $1 AND user_id = $2 RETURNING id', [req.params.id, DEFAULT_USER_ID]);
+    if (!result.rows.length) return res.status(404).json({ error: 'Budget not found' });
+    res.status(204).send();
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+router.get('/savings/:id/contributions', async (req: Request, res: Response) => {
+  try {
+    const result = await query(`SELECT c.id, c.savings_goal_id as "savingsGoalId", c.amount::float as amount,
+      to_char(c.date, 'YYYY-MM-DD') as date, c.note
+      FROM savings_contributions c JOIN savings_goals g ON g.id = c.savings_goal_id
+      WHERE g.id = $1 AND g.user_id = $2 ORDER BY c.date DESC, c.created_at DESC`, [req.params.id, DEFAULT_USER_ID]);
+    res.json({ contributions: result.rows });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+router.post('/savings/:id/contributions', async (req: Request, res: Response) => {
+  try {
+    const { amount, date, note } = req.body;
+    if (!Number.isFinite(Number(amount)) || Number(amount) <= 0) return res.status(400).json({ error: 'amount must be greater than zero' });
+    const result = await query(`
+      WITH owned_goal AS (
+        SELECT id FROM savings_goals WHERE id = $1 AND user_id = $2
+      ), added AS (
+        INSERT INTO savings_contributions (savings_goal_id, amount, date, note)
+        SELECT id, $3, COALESCE($4::date, CURRENT_DATE), NULLIF($5, '') FROM owned_goal
+        RETURNING id, savings_goal_id, amount, date, note
+      ), updated AS (
+        UPDATE savings_goals SET current_amount = current_amount + $3
+        WHERE id = $1 AND user_id = $2 AND EXISTS (SELECT 1 FROM added)
+        RETURNING id, title, current_amount::float as "currentAmount", target_amount::float as "targetAmount"
+      )
+      SELECT added.id, added.savings_goal_id as "savingsGoalId", added.amount::float as amount,
+        to_char(added.date, 'YYYY-MM-DD') as date, added.note, updated.title,
+        updated."currentAmount", updated."targetAmount" FROM added, updated
+    `, [req.params.id, DEFAULT_USER_ID, Number(amount), date || null, String(note || '').trim()]);
+    if (!result.rows.length) return res.status(404).json({ error: 'Savings goal not found' });
+    res.status(201).json(result.rows[0]);
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
 export default router;

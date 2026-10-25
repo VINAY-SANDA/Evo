@@ -28,6 +28,12 @@ export default function ProjectsPage() {
   // New Milestone Form
   const [milestoneTitle, setMilestoneTitle] = useState('');
 
+  const projectTemplates = [
+    { name: 'Product launch', icon: '🚀', description: 'Plan, build, validate, and launch a product.', milestones: ['Define the user and problem', 'Build the first usable version', 'Test with early users', 'Launch and review results'] },
+    { name: 'Learning sprint', icon: '📚', description: 'A focused learning project with practice and review.', milestones: ['Set the learning outcome', 'Study the core concepts', 'Complete a practical exercise', 'Review and capture lessons'] },
+    { name: 'Business experiment', icon: '🧪', description: 'Validate a business idea with a small, measurable test.', milestones: ['Write the hypothesis', 'Talk to target customers', 'Run a small experiment', 'Decide whether to scale or adjust'] },
+  ];
+
   useEffect(() => {
     getProjects().then(res => {
       setProjects(res);
@@ -132,6 +138,16 @@ export default function ProjectsPage() {
     setShowMilestoneModal(false);
   };
 
+  const createFromTemplate = async (template: typeof projectTemplates[number]) => {
+    const created = await createProject({ name: template.name, description: template.description, priority: 'high', deadline: new Date(Date.now() + 60 * 86400000).toISOString().slice(0, 10) });
+    if (!created) { showToast('Template project could not be created. Please try again.'); return; }
+    setProjects(current => [created, ...current]);
+    setSelectedProjectId(created.id);
+    const createdMilestones = await Promise.all(template.milestones.map((title, index) => createProjectMilestone(created.id, { title, orderIndex: index + 1 })));
+    setMilestones(current => [...current, ...createdMilestones.filter((item): item is ProjectMilestone => Boolean(item))]);
+    showToast(`Started ${template.name} with ${createdMilestones.filter(Boolean).length} milestones.`);
+  };
+
   return (
     <div className="projects-page">
       {toastMessage && (
@@ -149,6 +165,11 @@ export default function ProjectsPage() {
           ➕ New Project
         </button>
       </div>
+
+      <section className="card project-template-section">
+        <div><h2 className="card-title">Start with a playbook</h2><p className="project-template-caption">Turn an idea into a clear sequence of outcomes.</p></div>
+        <div className="project-template-actions">{projectTemplates.map(template => <button key={template.name} className="btn btn-secondary" onClick={() => void createFromTemplate(template)}>{template.icon} {template.name}</button>)}</div>
+      </section>
 
       {/* Projects Overview Row */}
       <div className="projects-grid">

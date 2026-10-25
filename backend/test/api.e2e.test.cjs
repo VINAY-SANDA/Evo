@@ -98,8 +98,11 @@ test('authenticated API feature journeys work across EVO modules', async (t) => 
     const normalized = String(sql).replace(/\s+/g, ' ').trim();
     const mentionsForeignId = params.some(value => value === FOREIGN_ID);
 
-    if (mentionsForeignId && /^(SELECT|UPDATE|DELETE)/i.test(normalized)) {
+    if (mentionsForeignId && /^(SELECT|UPDATE|DELETE|WITH)/i.test(normalized)) {
       return { rows: [], rowCount: 0 };
+    }
+    if (/^WITH (new_task|updated_goal|owned_goal)/i.test(normalized)) {
+      return { rows: [{ ...baseRow, isRecurring: true, recurrenceFrequency: 'daily' }], rowCount: 1 };
     }
     if (/SELECT completed FROM habit_logs/i.test(normalized)) {
       return { rows: [], rowCount: 0 };
@@ -201,6 +204,10 @@ test('authenticated API feature journeys work across EVO modules', async (t) => 
       assert.equal((await request('/api/tasks')).status, 200);
       assert.equal((await request('/api/tasks/today')).status, 200);
       assert.equal((await request('/api/tasks', { method: 'POST', body: { title: 'EVO_E2E_fixture' } })).status, 201);
+      const recurringTask = await request('/api/tasks', { method: 'POST', body: { title: 'EVO_E2E_fixture repeat', recurrenceFrequency: 'weekdays', projectId: OWNED_ID } });
+      assert.equal(recurringTask.status, 201);
+      assert.match(calls.at(-1).sql, /recurrence_frequency/);
+      assert.match(calls.at(-1).sql, /project_id/);
       assert.equal((await request(`/api/tasks/${OWNED_ID}/toggle`, { method: 'POST' })).status, 200);
       assert.equal((await request(`/api/tasks/${OWNED_ID}`, { method: 'DELETE' })).status, 204);
       assert.equal((await request(`/api/tasks/${FOREIGN_ID}/toggle`, { method: 'POST' })).status, 404);
@@ -252,6 +259,13 @@ test('authenticated API feature journeys work across EVO modules', async (t) => 
       assert.match(calls.at(-1).sql, /DELETE FROM expenses WHERE id = \$1 AND user_id = \$2/i);
       assert.deepEqual(calls.at(-1).params, [OWNED_ID, DEFAULT_USER_ID]);
       assert.equal((await request(`/api/finance/expenses/${FOREIGN_ID}`, { method: 'DELETE' })).status, 404);
+      assert.equal((await request('/api/finance/budgets?month=2030-01')).status, 200);
+      assert.equal((await request('/api/finance/budgets', { method: 'PUT', body: { category: 'food', month: '2030-01', limitAmount: 5000, alertPercent: 75 } })).status, 201);
+      assert.match(calls.at(-1).sql, /ON CONFLICT \(user_id, category, month\)/);
+      assert.equal((await request(`/api/finance/budgets/${OWNED_ID}`, { method: 'DELETE' })).status, 204);
+      assert.equal((await request(`/api/finance/savings/${OWNED_ID}/contributions`, { method: 'POST', body: { amount: 200, note: 'EVO_E2E_fixture' } })).status, 201);
+      assert.match(calls.at(-1).sql, /INSERT INTO savings_contributions/);
+      assert.equal((await request(`/api/finance/savings/${OWNED_ID}/contributions`)).status, 200);
     });
 
     await t.test('learning subjects, topics, and statistics', async () => {
@@ -263,6 +277,9 @@ test('authenticated API feature journeys work across EVO modules', async (t) => 
       assert.equal((await request(`/api/learning/topics/${OWNED_ID}`, { method: 'DELETE' })).status, 204);
       assert.equal((await request(`/api/learning/topics/${FOREIGN_ID}`, { method: 'DELETE' })).status, 404);
       assert.equal((await request('/api/learning/stats')).status, 200);
+      assert.equal((await request('/api/learning/study-sessions')).status, 200);
+      assert.equal((await request('/api/learning/study-sessions', { method: 'POST', body: { subjectId: OWNED_ID, topicId: OWNED_ID, durationMinutes: 25 } })).status, 201);
+      assert.match(calls.at(-1).sql, /learning_study_sessions/);
       assert.equal((await request(`/api/learning/topics/${FOREIGN_ID}`, { method: 'PATCH', body: { status: 'completed' } })).status, 404);
       assert.equal((await request(`/api/learning/subjects/${OWNED_ID}`, { method: 'DELETE' })).status, 204);
       assert.equal((await request(`/api/learning/subjects/${FOREIGN_ID}`, { method: 'DELETE' })).status, 404);
@@ -275,6 +292,17 @@ test('authenticated API feature journeys work across EVO modules', async (t) => 
       assert.equal((await request(`/api/projects/${OWNED_ID}/milestones`, { method: 'POST', body: { title: 'EVO_E2E_fixture' } })).status, 201);
       assert.equal((await request(`/api/projects/milestones/${OWNED_ID}/toggle`, { method: 'PATCH' })).status, 200);
       assert.equal((await request(`/api/projects/milestones/${FOREIGN_ID}/toggle`, { method: 'PATCH' })).status, 404);
+    });
+
+    await t.test('goal check-ins and flexible habit summaries', async () => {
+      assert.equal((await request(`/api/goals/${OWNED_ID}/check-ins`, { method: 'POST', body: { currentValue: 30, note: 'EVO_E2E_fixture' } })).status, 201);
+      assert.match(calls.at(-1).sql, /INSERT INTO goal_check_ins/);
+      assert.equal((await request(`/api/goals/${OWNED_ID}/check-ins`)).status, 200);
+      assert.equal((await request('/api/habits/summary/weekly')).status, 200);
+      const customHabit = await request('/api/habits', { method: 'POST', body: { name: 'EVO_E2E_fixture custom', frequency: 'custom', scheduleDays: [1, 3, 5] } });
+      assert.equal(customHabit.status, 201);
+      assert.match(calls.at(-1).sql, /schedule_days/);
+      assert.deepEqual(calls.at(-1).params[6], [1, 3, 5]);
     });
 
     await t.test('reminders and notifications', async () => {

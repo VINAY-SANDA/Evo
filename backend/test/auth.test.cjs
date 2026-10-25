@@ -103,5 +103,27 @@ test('MCP credentials are limited to tool-required API operations', () => {
     authorization,
     method: 'DELETE',
     originalUrl: '/api/tasks/00000000-0000-0000-0000-000000000001',
-  }).statusCode, 401);
+  }).nextCalled, true);
+  for (const [method, originalUrl] of [
+    ['POST', '/api/finance/income'], ['POST', '/api/finance/savings'],
+    ['DELETE', '/api/habits/00000000-0000-0000-0000-000000000001'],
+    ['PATCH', '/api/habits/00000000-0000-0000-0000-000000000001/archive'],
+    ['GET', '/api/habits/summary/weekly'],
+    ['DELETE', '/api/finance/expenses/00000000-0000-0000-0000-000000000001'],
+    ['POST', '/api/learning/subjects'],
+    ['POST', '/api/learning/subjects/00000000-0000-0000-0000-000000000001/topics'],
+    ['DELETE', '/api/learning/topics/00000000-0000-0000-0000-000000000001'],
+    ['PUT', '/api/finance/budgets'],
+    ['POST', '/api/finance/savings/00000000-0000-0000-0000-000000000001/contributions'],
+    ['POST', '/api/learning/study-sessions'],
+    ['POST', '/api/projects'],
+    ['PATCH', '/api/reminders/00000000-0000-0000-0000-000000000001'],
+    ['POST', '/api/reviews/weekly'],
+    ['PATCH', '/api/notifications/read-all'],
+    ['POST', '/api/goals/00000000-0000-0000-0000-000000000001/check-ins'],
+    ['GET', '/api/goals/00000000-0000-0000-0000-000000000001/check-ins'],
+  ]) {
+    assert.equal(invoke(authenticateApiRequest, { authorization, method, originalUrl }).nextCalled, true, `${method} ${originalUrl} should be available to scoped MCP token`);
+  }
+  assert.equal(invoke(authenticateApiRequest, { authorization, method: 'DELETE', originalUrl: '/api/notifications/00000000-0000-0000-0000-000000000001' }).nextCalled, true);
 });

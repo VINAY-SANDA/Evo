@@ -6,6 +6,9 @@ import type {
   Expense,
   Income,
   SavingsGoal,
+  FinanceBudget,
+  SavingsContribution,
+  StudySession,
   LearningSubject,
   LearningTopic,
   Project,
@@ -163,6 +166,10 @@ export async function updateGoalProgress(id: string, progress: number): Promise<
   });
 }
 
+export async function recordGoalCheckIn(id: string, currentValue: number, note = ''): Promise<{ currentValue: number } | null> {
+  return apiRequest<{ currentValue: number }>(`/api/goals/${id}/check-ins`, { method: 'POST', body: JSON.stringify({ currentValue, note }) });
+}
+
 export async function deleteGoal(id: string): Promise<boolean> {
   const token = typeof window !== 'undefined' ? getAuthToken() : null;
   const authHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
@@ -238,6 +245,10 @@ export async function getHabits(includeArchived = false): Promise<Habit[]> {
   const suffix = includeArchived ? '?includeArchived=true' : '';
   const remote = await apiRequest<{ habits: Habit[] }>(`/api/habits${suffix}`);
   return remote?.habits || [];
+}
+
+export async function getHabitWeeklySummary(): Promise<{ habits: Array<{ id: string; name: string; icon: string; currentStreak: number; completedDays: number }>; completed: number; expected: number; completionRate: number }> {
+  return (await apiRequest<any>('/api/habits/summary/weekly')) || { habits: [], completed: 0, expected: 0, completionRate: 0 };
 }
 
 export async function createHabit(habit: Partial<Habit>): Promise<Habit | null> {
@@ -331,6 +342,30 @@ export async function deleteSavingsGoal(id: string): Promise<boolean> {
   return apiDelete(`/api/finance/savings/${id}`);
 }
 
+export async function getFinanceBudgets(month: string): Promise<FinanceBudget[]> {
+  const remote = await apiRequest<{ budgets: FinanceBudget[] }>(`/api/finance/budgets?month=${encodeURIComponent(month)}`);
+  return remote?.budgets || [];
+}
+
+export async function saveFinanceBudget(budget: { category: string; month: string; limitAmount: number; alertPercent?: number }): Promise<FinanceBudget | null> {
+  return apiRequest<FinanceBudget>('/api/finance/budgets', { method: 'PUT', body: JSON.stringify(budget) });
+}
+
+export async function deleteFinanceBudget(id: string): Promise<boolean> {
+  return apiDelete(`/api/finance/budgets/${id}`);
+}
+
+export async function addSavingsContribution(goalId: string, contribution: { amount: number; date?: string; note?: string }): Promise<SavingsContribution & { currentAmount: number }> {
+  const result = await apiRequest<SavingsContribution & { currentAmount: number }>(`/api/finance/savings/${goalId}/contributions`, { method: 'POST', body: JSON.stringify(contribution) });
+  if (!result) throw new Error('The savings contribution was not saved.');
+  return result;
+}
+
+export async function getSavingsContributions(goalId: string): Promise<SavingsContribution[]> {
+  const result = await apiRequest<{ contributions: SavingsContribution[] }>(`/api/finance/savings/${goalId}/contributions`);
+  return result?.contributions || [];
+}
+
 // ── Learning ──
 export async function getLearningSubjects(): Promise<LearningSubject[]> {
   const remote = await apiRequest<{ subjects: LearningSubject[] }>('/api/learning/subjects');
@@ -355,11 +390,15 @@ export async function deleteLearningSubject(id: string): Promise<boolean> {
   return apiDelete(`/api/learning/subjects/${id}`);
 }
 
-export async function createTopic(subjectId: string, topic: Partial<LearningTopic>): Promise<LearningTopic | null> {
+export async function createTopic(subjectId: string, topic: Partial<LearningTopic> & { resourceUrl?: string; nextReviewDate?: string }): Promise<LearningTopic | null> {
   return await apiRequest<LearningTopic>(`/api/learning/subjects/${subjectId}/topics`, {
     method: 'POST',
     body: JSON.stringify(topic),
   });
+}
+
+export async function updateLearningTopic(id: string, topic: Partial<LearningTopic> & { resourceUrl?: string; nextReviewDate?: string | null }): Promise<LearningTopic | null> {
+  return apiRequest<LearningTopic>(`/api/learning/topics/${id}`, { method: 'PATCH', body: JSON.stringify(topic) });
 }
 
 export async function updateTopicStatus(id: string, status: string): Promise<LearningTopic | null> {
@@ -371,6 +410,16 @@ export async function updateTopicStatus(id: string, status: string): Promise<Lea
 
 export async function deleteLearningTopic(id: string): Promise<boolean> {
   return apiDelete(`/api/learning/topics/${id}`);
+}
+
+export async function logStudySession(session: { subjectId: string; topicId?: string; durationMinutes: number; note?: string }): Promise<StudySession | null> {
+  return apiRequest<StudySession>('/api/learning/study-sessions', { method: 'POST', body: JSON.stringify(session) });
+}
+
+export async function getStudySessions(subjectId?: string): Promise<StudySession[]> {
+  const query = subjectId ? `?subjectId=${encodeURIComponent(subjectId)}` : '';
+  const result = await apiRequest<{ sessions: StudySession[] }>(`/api/learning/study-sessions${query}`);
+  return result?.sessions || [];
 }
 
 // ── Projects ──
@@ -449,6 +498,10 @@ export async function saveDailyReview(review: Partial<DailyReview>): Promise<Dai
     method: 'POST',
     body: JSON.stringify(review),
   });
+}
+
+export async function saveWeeklyReview(review: Partial<WeeklyReview>): Promise<WeeklyReview | null> {
+  return apiRequest<WeeklyReview>('/api/reviews/weekly', { method: 'POST', body: JSON.stringify(review) });
 }
 
 // ── AI Conversation ──

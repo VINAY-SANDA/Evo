@@ -111,18 +111,78 @@ function isAllowedMcpApiCall(method: string, originalUrl: string): boolean {
     'GET /api/goals',
     'POST /api/goals',
     'GET /api/habits',
+    'GET /api/habits/summary/weekly',
     'POST /api/habits',
     'GET /api/finance/summary',
+    'GET /api/finance/budgets',
+    'PUT /api/finance/budgets',
+    'GET /api/projects',
+    'POST /api/projects',
+    'GET /api/reminders',
+    'POST /api/reminders',
+    'PATCH /api/reminders/read-all',
+    'GET /api/notifications',
+    'PATCH /api/notifications/read-all',
+    'GET /api/progress/scores',
+    'GET /api/reviews/daily',
+    'POST /api/reviews/daily',
+    'GET /api/reviews/weekly',
+    'POST /api/reviews/weekly',
+    'GET /api/finance/expenses',
     'POST /api/finance/expenses',
+    'GET /api/finance/income',
+    'POST /api/finance/income',
+    'GET /api/finance/savings',
+    'POST /api/finance/savings',
+    'GET /api/learning/subjects',
+    'POST /api/learning/subjects',
+    'GET /api/learning/stats',
+    'GET /api/learning/study-sessions',
+    'POST /api/learning/study-sessions',
     'GET /api/memories',
     'POST /api/memories',
     'POST /api/ai/chat',
   ]);
 
   if (allowedCalls.has(`${method} ${pathname}`)) return true;
-  return method === 'POST' && (
+  return (
+    (method === 'POST' && (
     /^\/api\/tasks\/[0-9a-f-]+\/toggle$/i.test(pathname) ||
     /^\/api\/habits\/[0-9a-f-]+\/complete$/i.test(pathname)
+    )) ||
+    (method === 'DELETE' && (
+      /^\/api\/tasks\/[0-9a-f-]+$/i.test(pathname) ||
+      /^\/api\/goals\/[0-9a-f-]+$/i.test(pathname) ||
+      /^\/api\/habits\/[0-9a-f-]+$/i.test(pathname) ||
+      /^\/api\/finance\/(expenses|income|savings)\/[0-9a-f-]+$/i.test(pathname) ||
+      /^\/api\/finance\/budgets\/[0-9a-f-]+$/i.test(pathname) ||
+      /^\/api\/learning\/(subjects|topics)\/[0-9a-f-]+$/i.test(pathname)
+    )) ||
+    (method === 'PATCH' && (
+      /^\/api\/habits\/[0-9a-f-]+\/(archive|restore)$/i.test(pathname) ||
+      /^\/api\/learning\/topics\/[0-9a-f-]+$/i.test(pathname)
+    )) ||
+    (method === 'PATCH' && (
+      /^\/api\/reminders\/[0-9a-f-]+$/i.test(pathname) ||
+      /^\/api\/notifications\/(read-all|[0-9a-f-]+\/read)$/i.test(pathname) ||
+      /^\/api\/projects\/milestones\/[0-9a-f-]+\/toggle$/i.test(pathname)
+    )) ||
+    (method === 'DELETE' && (
+      /^\/api\/reminders\/[0-9a-f-]+$/i.test(pathname) ||
+      /^\/api\/notifications\/[0-9a-f-]+$/i.test(pathname)
+    )) ||
+    (method === 'GET' && /^\/api\/learning\/subjects\/[0-9a-f-]+\/topics$/i.test(pathname)) ||
+    (method === 'GET' && /^\/api\/projects\/[0-9a-f-]+\/milestones$/i.test(pathname)) ||
+    (method === 'POST' && /^\/api\/projects\/[0-9a-f-]+\/milestones$/i.test(pathname)) ||
+    (method === 'POST' && (
+      /^\/api\/learning\/subjects\/[0-9a-f-]+\/topics$/i.test(pathname) ||
+      /^\/api\/finance\/savings\/[0-9a-f-]+\/contributions$/i.test(pathname) ||
+      /^\/api\/goals\/[0-9a-f-]+\/check-ins$/i.test(pathname)
+    )) ||
+    (method === 'GET' && (
+      /^\/api\/finance\/savings\/[0-9a-f-]+\/contributions$/i.test(pathname) ||
+      /^\/api\/goals\/[0-9a-f-]+\/check-ins$/i.test(pathname)
+    ))
   );
 }
 

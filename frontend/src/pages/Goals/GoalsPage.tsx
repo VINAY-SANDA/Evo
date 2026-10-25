@@ -5,6 +5,7 @@ import {
   createGoal,
   updateGoal,
   updateGoalProgress,
+  recordGoalCheckIn,
   deleteGoal,
 } from '../../services/api';
 import './GoalsPage.css';
@@ -181,6 +182,19 @@ export default function GoalsPage() {
     await updateGoalProgress(goalId, clamped);
   };
 
+  const handleGoalCheckIn = async (goal: Goal) => {
+    const rawValue = window.prompt(`Current progress for “${goal.title}” in ${goal.unit}:`, String(goal.currentValue));
+    if (rawValue === null) return;
+    const value = Number(rawValue);
+    if (!Number.isFinite(value) || value < 0) { showToast('Enter a valid progress value.'); return; }
+    const note = window.prompt('Optional check-in note:') || '';
+    const saved = await recordGoalCheckIn(goal.id, value, note);
+    if (!saved) { showToast('Progress check-in could not be saved.'); return; }
+    const progress = goal.targetValue > 0 ? Math.min(100, Math.round(value / goal.targetValue * 100)) : 0;
+    setGoals(items => items.map(item => item.id === goal.id ? { ...item, currentValue: value, progress } : item));
+    showToast(`Progress check-in saved for “${goal.title}”.`);
+  };
+
   const toggleMilestone = (milestoneId: string, goalId: string) => {
     setMilestones(prev => {
       const updated = prev.map(m => m.id === milestoneId ? {
@@ -331,6 +345,7 @@ export default function GoalsPage() {
                     +10%
                   </button>
                 </div>
+                <button type="button" className="btn btn-secondary sm" onClick={() => void handleGoalCheckIn(goal)}>Log progress check-in</button>
               </div>
 
               {goalMilestones.length > 0 && (

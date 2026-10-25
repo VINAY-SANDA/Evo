@@ -4,6 +4,36 @@ import { DEFAULT_USER_ID } from '../db/userHelper.js';
 
 const router: Router = express.Router();
 
+router.get('/:id/check-ins', async (req: Request, res: Response) => {
+  try {
+    const result = await query(`
+      SELECT c.id, c.goal_id as "goalId", c.value::float as value, c.note, c.created_at as "createdAt"
+      FROM goal_check_ins c JOIN goals g ON g.id = c.goal_id
+      WHERE c.goal_id = $1 AND g.user_id = $2 ORDER BY c.created_at DESC LIMIT 50`,
+    [req.params.id, DEFAULT_USER_ID]);
+    res.json({ checkIns: result.rows });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+router.post('/:id/check-ins', async (req: Request, res: Response) => {
+  try {
+    const value = Number(req.body.currentValue);
+    if (!Number.isFinite(value) || value < 0) return res.status(400).json({ error: 'currentValue must be zero or greater' });
+    const result = await query(`
+      WITH updated_goal AS (
+        UPDATE goals SET current_value = $2, updated_at = CURRENT_TIMESTAMP
+        WHERE id = $1 AND user_id = $3
+        RETURNING id, target_value, current_value
+      )
+      INSERT INTO goal_check_ins (goal_id, value, note)
+      SELECT id, current_value, NULLIF($4, '') FROM updated_goal
+      RETURNING id, goal_id as "goalId", value::float as value, note, created_at as "createdAt"`,
+    [req.params.id, value, DEFAULT_USER_ID, String(req.body.note || '').trim()]);
+    if (!result.rows.length) return res.status(404).json({ error: 'Goal not found' });
+    res.status(201).json({ ...result.rows[0], currentValue: value });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
 // GET /api/goals
 router.get('/', async (req: Request, res: Response) => {
   try {

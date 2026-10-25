@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
-import type { Expense, ExpenseCategory, Income, SavingsGoal } from '../../types';
-import { addExpense, addIncome, addSavingsGoal, deleteExpense, deleteIncome, deleteSavingsGoal, getFinanceSummary } from '../../services/api';
+import type { Expense, ExpenseCategory, Income, SavingsGoal, FinanceBudget } from '../../types';
+import { addExpense, addIncome, addSavingsGoal, addSavingsContribution, deleteExpense, deleteIncome, deleteSavingsGoal, deleteFinanceBudget, getFinanceBudgets, getFinanceSummary, saveFinanceBudget } from '../../services/api';
 import './FinancePage.css';
 
-type FinanceTab = 'overview' | 'expenses' | 'income' | 'savings';
+type FinanceTab = 'overview' | 'expenses' | 'income' | 'savings' | 'budgets';
 type FinanceModal = 'expense' | 'income' | 'savings' | null;
 
 const categoryEmojis: Record<ExpenseCategory, string> = {
@@ -25,6 +25,12 @@ export default function FinancePage() {
   const [incomes, setIncomes] = useState<Income[]>([]);
   const [savingsGoals, setSavingsGoals] = useState<SavingsGoal[]>([]);
   const [totalIncome, setTotalIncome] = useState(0);
+  const [budgets, setBudgets] = useState<FinanceBudget[]>([]);
+  const [budgetMonth, setBudgetMonth] = useState(today().slice(0, 7));
+  const [budgetCategory, setBudgetCategory] = useState<ExpenseCategory>('food');
+  const [budgetLimit, setBudgetLimit] = useState('');
+  const [quickEntry, setQuickEntry] = useState('');
+  const [quickEntryType, setQuickEntryType] = useState<'expense' | 'income'>('expense');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -41,6 +47,8 @@ export default function FinancePage() {
       setTotalIncome(result.totalIncome);
     });
   }, []);
+
+  useEffect(() => { getFinanceBudgets(budgetMonth).then(setBudgets); }, [budgetMonth]);
 
   const showToast = (message: string) => {
     setToastMessage(message);
@@ -153,6 +161,55 @@ export default function FinancePage() {
     showToast('Savings goal deleted.');
   };
 
+  const recordSavingsContribution = async (goal: SavingsGoal) => {
+    const raw = window.prompt(`How much did you add to “${goal.title}”? (₹)`);
+    if (raw === null) return;
+    const amount = Number(raw);
+    if (!Number.isFinite(amount) || amount <= 0) { showToast('Enter an amount greater than zero.'); return; }
+    try {
+      const saved = await addSavingsContribution(goal.id, { amount, date: today() });
+      setSavingsGoals(current => current.map(item => item.id === goal.id ? { ...item, currentAmount: saved.currentAmount } : item));
+      showToast(`₹${amount.toLocaleString()} added to ${goal.title}.`);
+    } catch (error) { showToast(error instanceof Error ? error.message : 'Contribution could not be saved.'); }
+  };
+
+  const submitBudget = async (event: React.FormEvent) => {
+    event.preventDefault();
+    const saved = await saveFinanceBudget({ category: budgetCategory, month: budgetMonth, limitAmount: Number(budgetLimit), alertPercent: 80 });
+    if (!saved) { showToast('Budget could not be saved. Please try again.'); return; }
+    setBudgets(current => [...current.filter(item => item.category !== saved.category), { ...saved, spent: current.find(item => item.category === saved.category)?.spent || 0 }]);
+    setBudgetLimit('');
+    showToast(`${saved.category} budget saved for ${budgetMonth}.`);
+  };
+
+  const captureQuickEntry = async (event: React.FormEvent) => {
+    event.preventDefault();
+    const match = quickEntry.match(/(?:₹|rs\.?\s*)?([\d,]+(?:\.\d{1,2})?)/i);
+    if (!match) { showToast('Include an amount, for example “₹250 lunch”.'); return; }
+    const amount = Number(match[1].replaceAll(',', ''));
+    const description = quickEntry.replace(match[0], '').replace(/\b(spent|spend|paid|bought|expense|earned|income|received|from|on)\b/gi, '').trim() || (quickEntryType === 'expense' ? 'Quick expense' : 'Quick income');
+    if (quickEntryType === 'expense') {
+      const created = await addExpense({ amount, description, category: 'other', date: today() });
+      if (!created) { showToast('Expense could not be recorded.'); return; }
+      setExpenses(current => [created, ...current]);
+      showToast(`Expense recorded: ₹${amount.toLocaleString()} for ${description}.`);
+    } else {
+      const created = await addIncome({ amount, source: description, category: 'General', date: today() });
+      if (!created) { showToast('Income could not be recorded.'); return; }
+      setIncomes(current => [created, ...current]);
+      setTotalIncome(current => current + amount);
+      showToast(`Income recorded: ₹${amount.toLocaleString()} from ${description}.`);
+    }
+    setQuickEntry('');
+  };
+
+  const removeBudget = async (budget: FinanceBudget) => {
+    if (!window.confirm(`Delete the ${budget.category} budget for ${budget.month}?`)) return;
+    if (!await deleteFinanceBudget(budget.id)) { showToast('Budget could not be deleted.'); return; }
+    setBudgets(current => current.filter(item => item.id !== budget.id));
+    showToast('Budget deleted.');
+  };
+
   const primaryAction = tab === 'income'
     ? { label: '+ Add Income', action: 'income' as const }
     : tab === 'savings'
@@ -191,8 +248,15 @@ export default function FinancePage() {
         </div>
       </div>
 
+      <form className="card finance-quick-capture" onSubmit={captureQuickEntry}>
+        <div><strong>Quick capture</strong><p className="finance-empty">Write a short note such as “spent ₹250 on lunch”.</p></div>
+        <select className="form-input" aria-label="Entry type" value={quickEntryType} onChange={event => setQuickEntryType(event.target.value as 'expense' | 'income')}><option value="expense">Expense</option><option value="income">Income</option></select>
+        <input className="form-input" aria-label="Quick finance entry" placeholder="₹250 lunch" value={quickEntry} onChange={event => setQuickEntry(event.target.value)} />
+        <button className="btn btn-secondary" type="submit">Add entry</button>
+      </form>
+
       <div className="filter-pill-group finance-tabs" role="tablist" aria-label="Finance sections">
-        {(['overview', 'expenses', 'income', 'savings'] as const).map(section => (
+        {(['overview', 'expenses', 'income', 'savings', 'budgets'] as const).map(section => (
           <button
             key={section}
             className={`filter-pill ${tab === section ? 'active' : ''}`}
@@ -291,6 +355,7 @@ export default function FinancePage() {
                       <h3 className="savings-goal-name">{goal.title}</h3>
                       <div className="savings-goal-actions">
                         <span className="savings-goal-percent">{progress}%</span>
+                        <button className="btn btn-secondary sm" onClick={() => void recordSavingsContribution(goal)}>+ Add contribution</button>
                         <button className="finance-delete-button" onClick={() => void removeSavingsGoal(goal)} aria-label={`Delete savings goal ${goal.title}`} title="Delete savings goal">Delete</button>
                       </div>
                     </div>
@@ -309,6 +374,47 @@ export default function FinancePage() {
               })}
             </div>
           )}
+        </div>
+      )}
+
+      {tab === 'budgets' && (
+        <div className="finance-overview-grid">
+          <section className="card">
+            <div className="card-header"><div><h2 className="card-title">Monthly budgets</h2><p className="finance-empty">Set category limits and get a clear warning at 80%.</p></div>
+              <label className="form-label">Month <input className="form-input" type="month" value={budgetMonth} onChange={event => setBudgetMonth(event.target.value)} /></label>
+            </div>
+            <form onSubmit={submitBudget} className="budget-create-row">
+              <select className="form-input" aria-label="Budget category" value={budgetCategory} onChange={event => setBudgetCategory(event.target.value as ExpenseCategory)}>
+                {Object.keys(categoryEmojis).map(category => <option key={category} value={category}>{categoryEmojis[category as ExpenseCategory]} {category}</option>)}
+              </select>
+              <input className="form-input" type="number" min="1" step="0.01" placeholder="Monthly limit (₹)" value={budgetLimit} onChange={event => setBudgetLimit(event.target.value)} required />
+              <button className="btn btn-primary" type="submit">Save budget</button>
+            </form>
+            <div className="budget-list">
+              {budgets.length === 0 ? <p className="finance-empty">No limits set for this month yet.</p> : budgets.map(budget => {
+                const percent = Math.min(100, Math.round((Number(budget.spent) / Number(budget.limitAmount)) * 100));
+                const reached = Number(budget.spent) >= Number(budget.limitAmount) * Number(budget.alertPercent) / 100;
+                return <div className="budget-row" key={budget.id}>
+                  <div className="category-row-header"><strong>{categoryEmojis[budget.category as ExpenseCategory] || '📌'} {budget.category}</strong><span>₹{Number(budget.spent).toLocaleString()} / ₹{Number(budget.limitAmount).toLocaleString()}</span></div>
+                  <div className="progress-bar sm"><div className="progress-bar-fill animated" style={{ width: `${percent}%`, background: reached ? 'var(--evo-danger)' : 'var(--evo-primary)' }} /></div>
+                  <div className="budget-row-footer"><span className={reached ? 'budget-alert' : ''}>{reached ? 'Budget alert: spending reached your warning threshold.' : `${Math.max(0, Number(budget.limitAmount) - Number(budget.spent)).toLocaleString()} left`}</span><button className="finance-delete-button" onClick={() => void removeBudget(budget)}>Delete</button></div>
+                </div>;
+              })}
+            </div>
+          </section>
+          <section className="card">
+            <div className="card-header"><h2 className="card-title">Monthly report</h2></div>
+            {(() => {
+              const monthExpenses = expenses.filter(item => item.date?.startsWith(budgetMonth)).reduce((sum, item) => sum + Number(item.amount), 0);
+              const monthIncome = incomes.filter(item => item.date?.startsWith(budgetMonth)).reduce((sum, item) => sum + Number(item.amount), 0);
+              return <div className="monthly-report">
+                <div><span>Income</span><strong>₹{monthIncome.toLocaleString()}</strong></div>
+                <div><span>Expenses</span><strong>₹{monthExpenses.toLocaleString()}</strong></div>
+                <div><span>Net</span><strong className={monthIncome - monthExpenses >= 0 ? 'positive' : 'negative'}>₹{(monthIncome - monthExpenses).toLocaleString()}</strong></div>
+                <p className="finance-empty">Based on entries dated in {budgetMonth}. Add expenses and income as you go to keep this report current.</p>
+              </div>;
+            })()}
+          </section>
         </div>
       )}
 

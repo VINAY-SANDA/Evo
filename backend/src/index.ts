@@ -21,6 +21,7 @@ import { DEFAULT_USER_ID, ensureDefaultUser } from './db/userHelper.js';
 import { authenticateApiRequest, authenticateRequest } from './middleware/auth.js';
 import { createEvoMcpOAuthRouter } from './routes/mcpOAuth.js';
 import { ensureMcpOAuthTables } from './services/mcpOAuth.js';
+import { ensureFeatureTables } from './services/featureMigrations.js';
 
 dotenv.config();
 
@@ -377,6 +378,11 @@ if (process.env.NODE_ENV !== 'test') {
     if (isDbConnected) {
       console.log(`🐘 PostgreSQL: Connected & active`);
       await ensureDefaultUser();
+      try {
+        await ensureFeatureTables();
+      } catch (error) {
+        console.warn('⚠️ EVO feature tables could not be initialized:', error instanceof Error ? error.message : error);
+      }
       try {
         await ensureMcpOAuthTables();
       } catch (error) {

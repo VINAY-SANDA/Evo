@@ -48,6 +48,14 @@ CREATE TABLE IF NOT EXISTS goal_milestones (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS goal_check_ins (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    goal_id UUID NOT NULL REFERENCES goals(id) ON DELETE CASCADE,
+    value NUMERIC NOT NULL,
+    note TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 -- ── Projects ──
 CREATE TABLE IF NOT EXISTS projects (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -88,6 +96,8 @@ CREATE TABLE IF NOT EXISTS tasks (
     category VARCHAR(64) NOT NULL DEFAULT 'General',
     estimated_minutes INT DEFAULT 30,
     is_recurring BOOLEAN DEFAULT FALSE,
+    recurrence_frequency VARCHAR(16), -- daily, weekly, weekdays, monthly
+    recurrence_series_id UUID,
     is_ai_generated BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
@@ -102,6 +112,7 @@ CREATE TABLE IF NOT EXISTS habits (
     icon VARCHAR(32) DEFAULT '🔥',
     color VARCHAR(32) DEFAULT '#6C5CE7',
     frequency VARCHAR(16) NOT NULL DEFAULT 'daily',
+    schedule_days INT[],
     target INT NOT NULL DEFAULT 1,
     unit VARCHAR(32) NOT NULL DEFAULT 'times',
     current_streak INT NOT NULL DEFAULT 0,
@@ -167,6 +178,42 @@ CREATE TABLE IF NOT EXISTS savings_goals (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS finance_budgets (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    category VARCHAR(64) NOT NULL,
+    month DATE NOT NULL,
+    limit_amount NUMERIC(12, 2) NOT NULL CHECK (limit_amount > 0),
+    alert_percent INT NOT NULL DEFAULT 80 CHECK (alert_percent BETWEEN 1 AND 100),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (user_id, category, month)
+);
+
+CREATE TABLE IF NOT EXISTS savings_contributions (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    savings_goal_id UUID NOT NULL REFERENCES savings_goals(id) ON DELETE CASCADE,
+    amount NUMERIC(12, 2) NOT NULL CHECK (amount > 0),
+    date DATE NOT NULL DEFAULT CURRENT_DATE,
+    note TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS learning_study_sessions (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    subject_id UUID NOT NULL REFERENCES learning_subjects(id) ON DELETE CASCADE,
+    topic_id UUID REFERENCES learning_topics(id) ON DELETE SET NULL,
+    duration_minutes INT NOT NULL CHECK (duration_minutes > 0),
+    note TEXT,
+    studied_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS recurrence_frequency VARCHAR(16);
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS recurrence_series_id UUID;
+ALTER TABLE habits ADD COLUMN IF NOT EXISTS schedule_days INT[];
+CREATE UNIQUE INDEX IF NOT EXISTS tasks_recurrence_series_date_uq
+    ON tasks (recurrence_series_id, due_date) WHERE recurrence_series_id IS NOT NULL;
+
 -- ── Learning Tracks ──
 CREATE TABLE IF NOT EXISTS learning_subjects (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -188,6 +235,9 @@ CREATE TABLE IF NOT EXISTS learning_topics (
     status VARCHAR(16) NOT NULL DEFAULT 'not_started',
     difficulty VARCHAR(16) NOT NULL DEFAULT 'medium',
     time_spent_minutes INT NOT NULL DEFAULT 0,
+    notes TEXT,
+    resource_url TEXT,
+    next_review_date DATE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 

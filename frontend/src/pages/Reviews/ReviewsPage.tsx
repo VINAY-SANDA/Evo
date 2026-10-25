@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import type { DailyReview, WeeklyReview } from '../../types';
-import { getDailyReview, getWeeklyReview, createTask, saveDailyReview } from '../../services/api';
+import { getDailyReview, getWeeklyReview, createTask, getTasks, getHabits, getGoals, sendAiChatMessage, saveDailyReview, saveWeeklyReview } from '../../services/api';
 import './ReviewsPage.css';
 
 const defaultDailyReview: DailyReview = {
@@ -39,6 +39,7 @@ export default function ReviewsPage() {
 
   const [winInput, setWinInput] = useState('');
   const [gapInput, setGapInput] = useState('');
+  const [generatingWeeklyReview, setGeneratingWeeklyReview] = useState(false);
 
   useEffect(() => {
     getDailyReview().then(res => {
@@ -82,6 +83,63 @@ export default function ReviewsPage() {
     await saveDailyReview(updated);
   };
 
+  const generateWeeklyPlan = async () => {
+    if (generatingWeeklyReview) return;
+    setGeneratingWeeklyReview(true);
+    try {
+      const [tasks, habits, goals] = await Promise.all([getTasks(), getHabits(), getGoals()]);
+      const end = new Date();
+      const start = new Date(end);
+      start.setDate(start.getDate() - 6);
+      const weekStart = start.toISOString().slice(0, 10);
+      const weekEnd = end.toISOString().slice(0, 10);
+      const weekTasks = tasks.filter(task => task.dueDate && task.dueDate >= weekStart && task.dueDate <= weekEnd);
+      const completed = weekTasks.filter(task => task.status === 'completed').length;
+      const open = weekTasks.filter(task => task.status !== 'completed');
+      const habitStreaks = habits.filter(habit => habit.active).sort((a, b) => b.currentStreak - a.currentStreak);
+      const aiContext = {
+        userName: 'Vinay',
+        tone: 'balanced' as const,
+        activeGoals: goals.filter(goal => goal.status === 'active').map(goal => ({ title: goal.title, progress: goal.progress, deadline: goal.deadline })),
+        todayTasks: weekTasks.map(task => ({ title: task.title, status: task.status, priority: task.priority })),
+        habits: habitStreaks.map(habit => ({ name: habit.name, currentStreak: habit.currentStreak, completedToday: habit.completedToday })),
+        monthlySavings: { income: 0, expenses: 0, net: 0 },
+        memories: [],
+      };
+      const aiReply = await sendAiChatMessage(
+        `Create a concise weekly review for ${weekStart} through ${weekEnd}. Use only the task, active goal, and habit data provided. This week had ${completed} of ${weekTasks.length} due tasks completed and ${open.length} unfinished. Do not invent events or progress. Return only a valid JSON object with these exact fields: {"biggestAchievement":"...", "biggestProblem":"...", "nextWeekPriorities":["...","...","..."], "overallScore":0}. Priorities must be concrete and based on the provided data.`,
+        aiContext,
+      );
+      if (/^(EVO could not get an AI response|Gemini is not configured|Gemini is busy|Gemini API error|Gemini returned no text|Gemini took too long|Could not reach the Gemini API)/i.test(aiReply.content)) {
+        showToast(aiReply.content);
+        return;
+      }
+      const jsonText = aiReply.content.match(/\{[\s\S]*\}/)?.[0];
+      if (!jsonText) { showToast('Gemini did not return a usable review. Please try again.'); return; }
+      let generated: { biggestAchievement?: string; biggestProblem?: string; nextWeekPriorities?: string[]; overallScore?: number };
+      try { generated = JSON.parse(jsonText); }
+      catch { showToast('Gemini returned an unreadable review. Please try again.'); return; }
+      const priorities = Array.isArray(generated.nextWeekPriorities) ? generated.nextWeekPriorities.filter(item => typeof item === 'string' && item.trim()).slice(0, 3) : [];
+      if (!generated.biggestAchievement?.trim() || !generated.biggestProblem?.trim() || priorities.length === 0) {
+        showToast('Gemini returned an incomplete review. Please try again.');
+        return;
+      }
+      const review = await saveWeeklyReview({
+        weekStart, weekEnd,
+        overallScore: Number.isFinite(Number(generated.overallScore)) ? Math.max(0, Math.min(100, Math.round(Number(generated.overallScore)))) : (weekTasks.length ? Math.round(completed / weekTasks.length * 100) : 0),
+        biggestAchievement: generated.biggestAchievement.trim(),
+        biggestProblem: generated.biggestProblem.trim(),
+        nextWeekPriorities: priorities,
+        categoryScores: habitStreaks.slice(0, 3).map(habit => ({ category: habit.name, score: Math.min(100, habit.currentStreak * 10), change: 0, icon: habit.icon, color: habit.color })),
+      });
+      if (!review) { showToast('Weekly review could not be saved. Please try again.'); return; }
+      setWeeklyReview(review);
+      showToast('Gemini generated your weekly review and EVO saved it.');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Gemini could not generate the weekly review. Please try again.');
+    } finally { setGeneratingWeeklyReview(false); }
+  };
+
   return (
     <div className="reviews-page">
       {toastMessage && (
@@ -93,7 +151,7 @@ export default function ReviewsPage() {
       <div className="page-header flex items-center justify-between">
         <div>
           <h1 className="page-title">Reviews & Retrospectives</h1>
-          <p className="page-subtitle">AI-assisted reflections, honest scorecards, and trajectory correction</p>
+          <p className="page-subtitle">{tab === 'weekly' ? 'Gemini uses your tasks, active goals, and habit streaks only when you ask it to generate a weekly review.' : 'AI-assisted reflections, honest scorecards, and trajectory correction'}</p>
         </div>
         <div className="flex items-center gap-3">
           <div className="tabs">
@@ -110,9 +168,8 @@ export default function ReviewsPage() {
               📅 Weekly Retrospective
             </button>
           </div>
-          <button className="btn btn-primary sm" onClick={() => setShowReflectionModal(true)}>
-            ✍️ Add Reflection
-          </button>
+          {tab === 'weekly' && <button className="btn btn-secondary sm" onClick={() => void generateWeeklyPlan()} disabled={generatingWeeklyReview}>{generatingWeeklyReview ? 'Asking Gemini…' : '✨ Generate with Gemini'}</button>}
+          {tab === 'daily' && <button className="btn btn-primary sm" onClick={() => setShowReflectionModal(true)}>✍️ Add Reflection</button>}
         </div>
       </div>
 

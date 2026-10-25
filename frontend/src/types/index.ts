@@ -69,6 +69,7 @@ export interface Task {
   category?: string;
   estimatedMinutes?: number;
   isRecurring: boolean;
+  recurrenceFrequency?: 'daily' | 'weekly' | 'weekdays' | 'monthly' | null;
   isAiGenerated: boolean;
   createdAt: string;
   updatedAt: string;
@@ -85,6 +86,7 @@ export interface Habit {
   icon: string;
   color: string;
   frequency: HabitFrequency;
+  scheduleDays?: number[] | null;
   target: number;
   unit: string;
   currentStreak: number;
@@ -153,6 +155,34 @@ export interface SavingsGoal {
   createdAt: string;
 }
 
+export interface FinanceBudget {
+  id: string;
+  category: string;
+  month: string;
+  limitAmount: number;
+  alertPercent: number;
+  spent: number;
+}
+
+export interface SavingsContribution {
+  id: string;
+  savingsGoalId: string;
+  amount: number;
+  date: string;
+  note?: string;
+}
+
+export interface StudySession {
+  id: string;
+  subjectId: string;
+  topicId?: string | null;
+  durationMinutes: number;
+  note?: string;
+  studiedAt: string;
+  subjectName?: string;
+  topicName?: string;
+}
+
 // ── Learning ──
 export interface LearningSubject {
   id: string;
@@ -174,6 +204,8 @@ export interface LearningTopic {
   difficulty: 'easy' | 'medium' | 'hard';
   timeSpentMinutes: number;
   notes?: string;
+  resourceUrl?: string;
+  nextReviewDate?: string | null;
 }
 
 // ── Projects ──

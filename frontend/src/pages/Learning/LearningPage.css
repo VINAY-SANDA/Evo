@@ -306,3 +306,17 @@
   filter: brightness(1.15);
   transform: scale(1.02);
 }
+.study-focus-card { display: flex; justify-content: space-between; gap: var(--space-6); align-items: center; margin: var(--space-5) 0; background: linear-gradient(120deg, var(--evo-surface) 55%, color-mix(in srgb, var(--evo-primary) 10%, var(--evo-surface))); }
+.study-focus-card h2 { margin: var(--space-1) 0; }
+.study-focus-card p { margin: 0; color: var(--evo-text-secondary); max-width: 600px; }
+.study-focus-eyebrow { font-size: var(--text-xs); letter-spacing: .12em; color: var(--evo-primary); font-weight: 700; }
+.study-focus-controls { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; justify-content: flex-end; }
+.study-focus-clock { font-variant-numeric: tabular-nums; font-size: 2rem; }
+.study-focus-total, .study-focus-hint { color: var(--evo-text-secondary); font-size: var(--text-sm); }
+.learning-review-queue { display: grid; gap: var(--space-4); margin-bottom: var(--space-5); border-color: color-mix(in srgb, var(--evo-primary) 35%, var(--evo-border)); }
+.learning-review-list { display: grid; gap: var(--space-2); }
+.learning-review-item { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); padding: var(--space-3); border-radius: var(--radius-md); background: var(--evo-surface-secondary); }
+.topic-notes { margin: var(--space-1) 0; color: var(--evo-text-secondary); font-size: var(--text-sm); }
+.topic-resources { display: flex; gap: var(--space-3); flex-wrap: wrap; color: var(--evo-text-secondary); font-size: var(--text-xs); }
+@media (max-width: 600px) { .learning-review-item { align-items: flex-start; flex-direction: column; } }
+@media (max-width: 750px) { .study-focus-card { align-items: flex-start; flex-direction: column; } .study-focus-controls { justify-content: flex-start; } }

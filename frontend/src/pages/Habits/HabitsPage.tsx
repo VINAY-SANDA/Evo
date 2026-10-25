@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import type { Habit } from '../../types';
-import { archiveHabit, createHabit, deleteHabit, getHabits, restoreHabit, toggleHabitComplete } from '../../services/api';
+import { archiveHabit, createHabit, deleteHabit, getHabits, getHabitWeeklySummary, restoreHabit, toggleHabitComplete } from '../../services/api';
 import './HabitsPage.css';
 
 const presetColors = ['#0066FF', '#0052CC', '#4D94FF', '#00C853', '#35D977', '#E53935', '#808080'];
@@ -10,13 +10,15 @@ export default function HabitsPage() {
   const [showModal, setShowModal] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [weeklySummary, setWeeklySummary] = useState<{ habits: Array<{ id: string; name: string; icon: string; currentStreak: number; completedDays: number }>; completed: number; expected: number; completionRate: number }>({ habits: [], completed: 0, expected: 0, completionRate: 0 });
 
   const [formData, setFormData] = useState<{
     name: string;
     description: string;
     icon: string;
     color: string;
-    frequency: 'daily' | 'weekly';
+    frequency: 'daily' | 'weekly' | 'custom';
+    scheduleDays: number[];
     target: number;
     unit: string;
   }>({
@@ -25,12 +27,14 @@ export default function HabitsPage() {
     icon: '⚡',
     color: '#0066FF',
     frequency: 'daily',
+    scheduleDays: [1, 2, 3, 4, 5],
     target: 1,
     unit: 'session',
   });
 
   useEffect(() => {
     getHabits(true).then(res => setHabits(res));
+    getHabitWeeklySummary().then(setWeeklySummary);
   }, []);
 
   const showToast = (msg: string) => {
@@ -92,6 +96,7 @@ export default function HabitsPage() {
       icon: formData.icon.trim() || '🎯',
       color: formData.color,
       frequency: formData.frequency,
+      scheduleDays: formData.frequency === 'custom' ? formData.scheduleDays : undefined,
       target: Number(formData.target) || 1,
       unit: formData.unit.trim() || 'times',
       currentStreak: 0,
@@ -110,6 +115,7 @@ export default function HabitsPage() {
       icon: '⚡',
       color: '#0066FF',
       frequency: 'daily',
+      scheduleDays: [1, 2, 3, 4, 5],
       target: 1,
       unit: 'session',
     });
@@ -139,6 +145,12 @@ export default function HabitsPage() {
           ➕ New Habit
         </button>
       </div>
+
+      <section className="card habit-weekly-summary">
+        <div><span className="habits-today-label">Last 7 days</span><strong>{weeklySummary.completionRate}% consistency</strong></div>
+        <div className="progress-bar"><div className="progress-bar-fill green animated" style={{ width: `${weeklySummary.completionRate}%` }} /></div>
+        <p className="habits-summary-detail">{weeklySummary.completed} completed check-ins across {weeklySummary.habits.length} active habits</p>
+      </section>
 
       <div className="habit-view-tabs" role="tablist" aria-label="Habit status">
         <button
@@ -297,6 +309,7 @@ export default function HabitsPage() {
                       >
                         <option value="daily">Daily</option>
                         <option value="weekly">Weekly</option>
+                        <option value="custom">Choose days</option>
                       </select>
                     </div>
                     <div className="form-group">
@@ -319,6 +332,7 @@ export default function HabitsPage() {
                       </div>
                     </div>
                   </div>
+                  {formData.frequency === 'custom' && <fieldset className="form-group habit-schedule-days"><legend className="form-label">Active days</legend><div className="habit-day-picker">{['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, index) => <label key={day}><input type="checkbox" checked={formData.scheduleDays.includes(index)} onChange={event => setFormData(current => ({ ...current, scheduleDays: event.target.checked ? [...current.scheduleDays, index].sort() : current.scheduleDays.filter(item => item !== index) }))} />{day}</label>)}</div></fieldset>}
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-4)' }}>
                     <div className="form-group">
                       <label className="form-label">Daily Target</label>

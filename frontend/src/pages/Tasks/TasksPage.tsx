@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import type { Task, TaskStatus, Priority } from '../../types';
-import { getTasks, createTask, toggleTaskStatus, deleteTask as apiDeleteTask } from '../../services/api';
+import type { Task, TaskStatus, Priority, Project } from '../../types';
+import { getTasks, createTask, toggleTaskStatus, deleteTask as apiDeleteTask, getProjects } from '../../services/api';
 import './TasksPage.css';
 
 const statusLabels: Record<TaskStatus, string> = {
@@ -15,9 +15,12 @@ const priorityColors: Record<Priority, string> = {
 
 export default function TasksPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [filter, setFilter] = useState<string>('all');
+  const [selectedWeekDay, setSelectedWeekDay] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [quickTask, setQuickTask] = useState('');
 
   const [formData, setFormData] = useState<{
     title: string;
@@ -27,6 +30,8 @@ export default function TasksPage() {
     priority: Priority;
     estimatedMinutes: number;
     category: string;
+    recurrenceFrequency: '' | 'daily' | 'weekly' | 'weekdays' | 'monthly';
+    projectId: string;
   }>({
     title: '',
     description: '',
@@ -35,10 +40,13 @@ export default function TasksPage() {
     priority: 'high',
     estimatedMinutes: 45,
     category: 'Career',
+    recurrenceFrequency: '',
+    projectId: '',
   });
 
   useEffect(() => {
     getTasks().then(res => setTasks(res));
+    getProjects().then(setProjects);
   }, []);
 
   const showToast = (msg: string) => {
@@ -47,11 +55,16 @@ export default function TasksPage() {
   };
 
   const todayStr = new Date().toISOString().split('T')[0];
+  const weekEnd = new Date();
+  weekEnd.setDate(weekEnd.getDate() + 7);
+  const weekEndStr = weekEnd.toISOString().split('T')[0];
 
   const filteredTasks = filter === 'all'
     ? tasks
     : filter === 'today'
     ? tasks.filter(t => t.dueDate === todayStr)
+    : filter === 'week'
+    ? tasks.filter(t => Boolean(t.dueDate && t.dueDate >= todayStr && t.dueDate <= weekEndStr && (!selectedWeekDay || t.dueDate === selectedWeekDay)))
     : tasks.filter(t => t.status === filter);
 
   const toggleTask = async (id: string) => {
@@ -78,6 +91,7 @@ export default function TasksPage() {
   const getStatusCount = (status: string) => {
     if (status === 'all') return tasks.length;
     if (status === 'today') return tasks.filter(t => t.dueDate === todayStr).length;
+    if (status === 'week') return tasks.filter(t => Boolean(t.dueDate && t.dueDate >= todayStr && t.dueDate <= weekEndStr)).length;
     return tasks.filter(t => t.status === status).length;
   };
 
@@ -94,6 +108,9 @@ export default function TasksPage() {
       estimatedMinutes: Number(formData.estimatedMinutes) || 30,
       category: formData.category.trim() || 'General',
       status: 'todo',
+      recurrenceFrequency: formData.recurrenceFrequency || undefined,
+      isRecurring: Boolean(formData.recurrenceFrequency),
+      projectId: formData.projectId || undefined,
     });
 
     if (newTask) {
@@ -108,10 +125,26 @@ export default function TasksPage() {
         priority: 'high',
         estimatedMinutes: 45,
         category: 'Career',
+        recurrenceFrequency: '',
+        projectId: '',
       });
     } else {
       showToast(`❌ Failed to create task. Check backend connection & console (F12).`);
     }
+  };
+
+  const captureQuickTask = async (event: React.FormEvent) => {
+    event.preventDefault();
+    const dueDate = /\btomorrow\b/i.test(quickTask)
+      ? new Date(Date.now() + 86400000).toISOString().slice(0, 10)
+      : todayStr;
+    const title = quickTask.replace(/\b(add task|remind me to|tomorrow|today)\b/gi, '').trim();
+    if (!title) { showToast('Type a task, such as “Study physics tomorrow”.'); return; }
+    const created = await createTask({ title, dueDate, priority: 'medium', category: 'General', estimatedMinutes: 30, status: 'todo' });
+    if (!created) { showToast('Task could not be added. Please try again.'); return; }
+    setTasks(current => [created, ...current]);
+    setQuickTask('');
+    showToast(`Added “${created.title}” for ${dueDate}.`);
   };
 
   return (
@@ -134,19 +167,35 @@ export default function TasksPage() {
         </button>
       </div>
 
+      <form className="card task-quick-capture" onSubmit={captureQuickTask}>
+        <div><strong>Quick plan</strong><p>Try “Study physics tomorrow”.</p></div>
+        <input className="form-input" aria-label="Quick task" value={quickTask} onChange={event => setQuickTask(event.target.value)} placeholder="What do you need to do?" />
+        <button className="btn btn-primary" type="submit">Add to plan</button>
+      </form>
+
       {/* Filters */}
       <div className="tabs" style={{ marginBottom: 'var(--space-6)' }}>
-        {['all', 'today', 'todo', 'in_progress', 'completed'].map(f => (
+        {['all', 'today', 'week', 'todo', 'in_progress', 'completed'].map(f => (
           <button
             key={f}
             className={`tab ${filter === f ? 'active' : ''}`}
-            onClick={() => setFilter(f)}
+            onClick={() => { setFilter(f); if (f !== 'week') setSelectedWeekDay(null); }}
           >
-            {f === 'all' ? 'All' : f === 'today' ? 'Today' : statusLabels[f as TaskStatus] || f}
+            {f === 'all' ? 'All' : f === 'today' ? 'Today' : f === 'week' ? 'Next 7 days' : statusLabels[f as TaskStatus] || f}
             <span style={{ opacity: 0.6, marginLeft: 6 }}>({getStatusCount(f)})</span>
           </button>
         ))}
       </div>
+
+      {filter === 'week' && <div className="week-calendar-strip" aria-label="Next seven days">
+        <button className={`week-calendar-day ${selectedWeekDay === null ? 'selected' : ''}`} onClick={() => setSelectedWeekDay(null)}><span>All</span><strong>{getStatusCount('week')}</strong><small>7 days</small></button>
+        {Array.from({ length: 7 }, (_, index) => {
+          const date = new Date(); date.setDate(date.getDate() + index);
+          const key = date.toISOString().slice(0, 10);
+          const count = tasks.filter(task => task.dueDate === key).length;
+          return <button key={key} className={`week-calendar-day ${selectedWeekDay === key ? 'selected' : ''}`} onClick={() => setSelectedWeekDay(key)}><span>{date.toLocaleDateString('en-IN', { weekday: 'short' })}</span><strong>{date.getDate()}</strong><small>{count} task{count === 1 ? '' : 's'}</small></button>;
+        })}
+      </div>}
 
       {/* Task List */}
       <div className="tasks-list">
@@ -297,6 +346,24 @@ export default function TasksPage() {
                       value={formData.category}
                       onChange={e => setFormData({ ...formData, category: e.target.value })}
                     />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label" htmlFor="task-repeat">Repeat</label>
+                    <select id="task-repeat" className="form-input" value={formData.recurrenceFrequency} onChange={e => setFormData({ ...formData, recurrenceFrequency: e.target.value as typeof formData.recurrenceFrequency })}>
+                      <option value="">Does not repeat</option>
+                      <option value="daily">Daily</option>
+                      <option value="weekdays">Every weekday</option>
+                      <option value="weekly">Weekly</option>
+                      <option value="monthly">Monthly</option>
+                    </select>
+                    <small className="form-hint">Completing a repeating task schedules its next occurrence.</small>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label" htmlFor="task-project">Project</label>
+                    <select id="task-project" className="form-input" value={formData.projectId} onChange={e => setFormData({ ...formData, projectId: e.target.value })}>
+                      <option value="">No project</option>
+                      {projects.filter(project => project.status === 'active').map(project => <option key={project.id} value={project.id}>{project.name}</option>)}
+                    </select>
                   </div>
                 </div>
               </div>
