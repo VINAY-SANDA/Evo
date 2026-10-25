@@ -38,15 +38,15 @@
 .review-score-badge {
   display: flex;
   align-items: baseline;
-  background: rgba(108, 92, 231, 0.15);
-  border: 1px solid rgba(108, 92, 231, 0.3);
+  background: rgba(41, 151, 255, 0.12);
+  border: 1px solid rgba(41, 151, 255, 0.25);
   padding: var(--space-2) var(--space-4);
   border-radius: var(--radius-xl);
 }
 
 .review-score-badge.weekly {
-  background: rgba(0, 230, 118, 0.15);
-  border-color: rgba(0, 230, 118, 0.3);
+  background: var(--evo-success-bg);
+  border-color: rgba(48, 209, 88, 0.25);
 }
 
 .score-number {
@@ -103,8 +103,8 @@
   gap: var(--space-3);
   padding: var(--space-4);
   border-radius: var(--radius-lg);
-  background: rgba(108, 92, 231, 0.08);
-  border: 1px solid rgba(108, 92, 231, 0.2);
+  background: linear-gradient(135deg, rgba(41, 151, 255, 0.08), rgba(255, 255, 255, 0.02));
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .ai-summary-icon {

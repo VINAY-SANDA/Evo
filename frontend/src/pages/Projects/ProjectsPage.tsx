@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import type { Project, ProjectMilestone, Priority, Task } from '../../types';
-import { getProjects, createProject, createProjectMilestone, getTasks } from '../../services/api';
+import { getProjects, createProject, createProjectMilestone, getProjectMilestones, toggleProjectMilestone, getTasks } from '../../services/api';
 import './ProjectsPage.css';
 
 export default function ProjectsPage() {
@@ -36,6 +36,17 @@ export default function ProjectsPage() {
       }
     });
     getTasks().then(setTasks);
+  }, []);
+
+  useEffect(() => {
+    if (selectedProjectId) {
+      getProjectMilestones(selectedProjectId).then(res => {
+        setMilestones(prev => {
+          const others = prev.filter(m => m.projectId !== selectedProjectId);
+          return [...others, ...res];
+        });
+      });
+    }
   }, [selectedProjectId]);
 
   const showToast = (msg: string) => {
@@ -55,7 +66,7 @@ export default function ProjectsPage() {
   const projectMilestones = milestones.filter(m => m.projectId === currentProject.id);
   const projectTasks = tasks.filter(t => t.projectId === currentProject.id);
 
-  const toggleMilestone = (milestoneId: string) => {
+  const toggleMilestone = async (milestoneId: string) => {
     setMilestones(prev => {
       const updated = prev.map(m => {
         if (m.id === milestoneId) {
@@ -79,6 +90,8 @@ export default function ProjectsPage() {
 
       return updated;
     });
+
+    await toggleProjectMilestone(milestoneId);
   };
 
   const handleCreateProject = async (e: React.FormEvent) => {

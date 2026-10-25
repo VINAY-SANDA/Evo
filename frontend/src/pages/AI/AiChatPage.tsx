@@ -12,15 +12,26 @@ const quickPrompts = [
   'Show my progress',
 ];
 
+const CHAT_STORAGE_KEY = 'evo_chat_history';
+
+const initialWelcomeMsg: AiMessage = {
+  id: 'msg_initial',
+  role: 'assistant',
+  content: "Greetings Vinay. I am EVO, your personal operating system strategic advisor. I'm connected live to your database metrics, habit streaks, and vision goals. How can I assist your execution today?",
+  timestamp: new Date().toISOString(),
+};
+
 export default function AiChatPage() {
-  const [messages, setMessages] = useState<AiMessage[]>([
-    {
-      id: 'msg_initial',
-      role: 'assistant',
-      content: "Greetings Vinay. I am EVO, your personal operating system strategic advisor. I'm connected live to your database metrics, habit streaks, and vision goals. How can I assist your execution today?",
-      timestamp: new Date().toISOString(),
-    },
-  ]);
+  const [messages, setMessages] = useState<AiMessage[]>(() => {
+    try {
+      const saved = localStorage.getItem(CHAT_STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return [initialWelcomeMsg];
+  });
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -31,6 +42,9 @@ export default function AiChatPage() {
   };
 
   useEffect(() => {
+    try {
+      localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(messages));
+    } catch {}
     scrollToBottom();
   }, [messages, isTyping]);
 

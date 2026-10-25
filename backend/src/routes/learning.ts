@@ -10,7 +10,7 @@ function mapSubject(row: any) {
     userId: row.user_id,
     name: row.name,
     icon: row.icon || '📖',
-    color: row.color || '#00D2FF',
+    color: row.color || '#2997FF',
     progress: Number(row.progress) || 0,
     totalTopics: Number(row.total_topics) || 0,
     completedTopics: Number(row.completed_topics) || 0,

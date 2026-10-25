@@ -8,10 +8,11 @@
 
 /* ── Hero ── */
 .home-hero {
-  background: linear-gradient(135deg, rgba(108, 92, 231, 0.1), rgba(0, 210, 255, 0.06));
-  border: 1px solid rgba(108, 92, 231, 0.12);
+  background: linear-gradient(180deg, rgba(28, 29, 35, 0.85) 0%, rgba(20, 21, 25, 0.85) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: var(--radius-xl);
   padding: var(--space-8);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4), 0 1px 0 rgba(255, 255, 255, 0.05) inset;
 }
 
 .hero-main {
@@ -103,12 +104,12 @@
 
 .habit-chip:hover {
   border-color: var(--habit-color, var(--evo-primary));
-  background: rgba(108, 92, 231, 0.08);
+  background: rgba(255, 255, 255, 0.05);
 }
 
 .habit-chip.completed {
-  background: rgba(0, 230, 118, 0.08);
-  border-color: rgba(0, 230, 118, 0.2);
+  background: var(--evo-success-bg);
+  border-color: rgba(48, 209, 88, 0.25);
 }
 
 .habit-chip-icon {

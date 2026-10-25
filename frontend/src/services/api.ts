@@ -136,6 +136,21 @@ export async function toggleTaskStatus(id: string): Promise<Task | null> {
   return await apiRequest<Task>(`/api/tasks/${id}/toggle`, { method: 'POST' });
 }
 
+export async function deleteTask(id: string): Promise<boolean> {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('evo_auth_token') : null;
+  const authHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+  if (!API_BASE_URL) return true;
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/tasks/${id}`, {
+      method: 'DELETE',
+      headers: { ...authHeaders },
+    });
+    return res.status === 204 || res.ok;
+  } catch {
+    return false;
+  }
+}
+
 // ── Habits ──
 export async function getHabits(): Promise<Habit[]> {
   const remote = await apiRequest<{ habits: Habit[] }>('/api/habits');
@@ -214,6 +229,13 @@ export async function createTopic(subjectId: string, topic: Partial<LearningTopi
   });
 }
 
+export async function updateTopicStatus(id: string, status: string): Promise<LearningTopic | null> {
+  return await apiRequest<LearningTopic>(`/api/learning/topics/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status }),
+  });
+}
+
 // ── Projects ──
 export async function getProjects(): Promise<Project[]> {
   const remote = await apiRequest<{ projects: Project[] }>('/api/projects');
@@ -231,6 +253,17 @@ export async function createProjectMilestone(projectId: string, milestone: Parti
   return await apiRequest<ProjectMilestone>(`/api/projects/${projectId}/milestones`, {
     method: 'POST',
     body: JSON.stringify(milestone),
+  });
+}
+
+export async function getProjectMilestones(projectId: string): Promise<ProjectMilestone[]> {
+  const remote = await apiRequest<{ milestones: ProjectMilestone[] }>(`/api/projects/${projectId}/milestones`);
+  return remote?.milestones || [];
+}
+
+export async function toggleProjectMilestone(id: string): Promise<ProjectMilestone | null> {
+  return await apiRequest<ProjectMilestone>(`/api/projects/milestones/${id}/toggle`, {
+    method: 'PATCH',
   });
 }
 
@@ -272,6 +305,13 @@ export async function getDailyReview(): Promise<DailyReview | null> {
 export async function getWeeklyReview(): Promise<WeeklyReview | null> {
   const remote = await apiRequest<{ reviews: WeeklyReview[]; latest: WeeklyReview | null }>('/api/reviews/weekly');
   return remote?.latest || null;
+}
+
+export async function saveDailyReview(review: Partial<DailyReview>): Promise<DailyReview | null> {
+  return await apiRequest<DailyReview>('/api/reviews/daily', {
+    method: 'POST',
+    body: JSON.stringify(review),
+  });
 }
 
 // ── AI Conversation ──

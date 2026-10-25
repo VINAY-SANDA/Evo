@@ -93,7 +93,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     return {
       success: false,
-      error: 'Access denied: Passcode incorrect. Only Vinay is authorized to access this personal operating system.',
+      error: 'Access denied: Invalid credentials. Authorized personnel only.',
     };
   };
 

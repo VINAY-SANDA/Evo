@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import type { LearningSubject, LearningTopic } from '../../types';
-import { getLearningSubjects, getLearningTopics, createTopic } from '../../services/api';
+import { getLearningSubjects, getLearningTopics, createTopic, updateTopicStatus } from '../../services/api';
 import './LearningPage.css';
 
 export default function LearningPage() {
@@ -33,7 +33,7 @@ export default function LearningPage() {
     id: 'sub_default',
     name: 'Curriculum',
     icon: '📚',
-    color: '#00D2FF',
+    color: '#2997FF',
     progress: 50,
     totalTopics: 10,
     completedTopics: 5,
@@ -46,17 +46,17 @@ export default function LearningPage() {
     t.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const toggleTopicStatus = (topicId: string) => {
+  const toggleTopicStatus = async (topicId: string) => {
+    const target = topics.find(t => t.id === topicId);
+    if (!target) return;
+
+    const nextStatus: LearningTopic['status'] =
+      target.status === 'completed' ? 'not_started' :
+      target.status === 'not_started' ? 'in_progress' : 'completed';
+
+    // Optimistic update
     setTopics(prev => {
-      const updated = prev.map(t => {
-        if (t.id === topicId) {
-          const nextStatus: LearningTopic['status'] = 
-            t.status === 'completed' ? 'not_started' :
-            t.status === 'not_started' ? 'in_progress' : 'completed';
-          return { ...t, status: nextStatus };
-        }
-        return t;
-      });
+      const updated = prev.map(t => t.id === topicId ? { ...t, status: nextStatus } : t);
 
       // Recalculate subject progress
       const currentSubjectTopics = updated.filter(t => t.subjectId === currentSubject.id);
@@ -73,6 +73,8 @@ export default function LearningPage() {
 
       return updated;
     });
+
+    await updateTopicStatus(topicId, nextStatus);
   };
 
   const handleAddTopic = async (e: React.FormEvent) => {
@@ -132,7 +134,10 @@ export default function LearningPage() {
             <div
               key={subj.id}
               className={`subject-card card ${isSelected ? 'active' : ''}`}
-              onClick={() => setSelectedSubjectId(subj.id)}
+              onClick={() => {
+                setSelectedSubjectId(subj.id);
+                setSearchQuery('');
+              }}
               style={{
                 borderColor: isSelected ? subj.color : undefined,
                 boxShadow: isSelected ? `0 0 16px ${subj.color}33` : undefined,

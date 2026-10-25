@@ -25,7 +25,7 @@ router.post('/login', async (req: Request, res: Response) => {
 
   if (!isPasscodeMatch || !isEmailMatch) {
     return res.status(401).json({
-      error: 'Access denied: Invalid credentials. This personal operating system is restricted exclusively to Vinay.',
+      error: 'Access denied: Invalid credentials. Authorized personnel only.',
     });
   }
 
@@ -63,7 +63,7 @@ router.post('/login', async (req: Request, res: Response) => {
 
   res.json({
     success: true,
-    message: 'Welcome back, Vinay. Personal operating system unlocked.',
+    message: 'Access granted. Personal operating system unlocked.',
     token: `evo_sec_${authToken}`,
     user,
   });

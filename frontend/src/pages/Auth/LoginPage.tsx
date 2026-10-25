@@ -8,8 +8,10 @@ export default function LoginPage() {
   const location = useLocation();
   const { login } = useAuth();
 
+  const [email, setEmail] = useState('vinay@example.com');
   const [passcode, setPasscode] = useState('');
   const [showPasscode, setShowPasscode] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -18,70 +20,77 @@ export default function LoginPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!passcode.trim()) {
-      setError('Please enter your master passcode');
+      setError('Please enter your access key.');
       return;
     }
 
     setIsSubmitting(true);
     setError(null);
 
-    const result = await login(passcode.trim());
+    const result = await login(passcode.trim(), email.trim());
     setIsSubmitting(false);
 
     if (result.success) {
       navigate(from, { replace: true });
     } else {
-      setError(result.error || 'Access denied');
+      setError(result.error || 'Invalid credentials. Access is restricted.');
     }
   };
 
   return (
-    <div className="login-container">
-      <div className="login-background-glow"></div>
+    <div className="auth-viewport">
+      <div className="auth-ambient-blur"></div>
 
-      <div className="login-card animate-fade-in-up">
-        <div className="login-header">
-          <div className="login-badge">
-            <span className="login-badge-dot"></span>
-            RESTRICTED ACCESS • VINAY ONLY
+      <div className="auth-card">
+        {/* Brand Header */}
+        <div className="auth-header">
+          <div className="auth-emblem">
+            <span className="auth-emblem-text">E</span>
           </div>
-
-          <div className="login-logo">
-            <div className="login-logo-icon">E</div>
-            <h1 className="login-logo-title">EVO</h1>
-          </div>
-          <p className="login-subtitle">Personal AI Operating System</p>
+          <h1 className="auth-title">EVO</h1>
+          <p className="auth-subtitle">Personal Intelligence Operating System</p>
         </div>
 
-        <div className="login-profile-preview">
-          <div className="login-avatar">V</div>
-          <div className="login-user-info">
-            <div className="login-user-name">Vinay</div>
-            <div className="login-user-role">System Owner & Operator</div>
-          </div>
-          <div className="login-status-pill">
-            <span className="lock-icon">🔒</span> Locked
-          </div>
-        </div>
-
+        {/* Error Alert */}
         {error && (
-          <div className="login-error-alert animate-fade-in-up">
-            <span className="error-icon">⚠️</span>
+          <div className="auth-alert" role="alert">
+            <svg className="auth-alert-icon" viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
+              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+            </svg>
             <span>{error}</span>
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="login-form">
-          <div className="login-field">
-            <label className="login-label" htmlFor="passcode-input">
-              Master Access Key / Passcode
+        {/* Sign In Form */}
+        <form onSubmit={handleSubmit} className="auth-form" noValidate>
+          <div className="auth-field">
+            <label className="auth-label" htmlFor="auth-email">
+              Account
             </label>
-            <div className="login-input-wrapper">
+            <input
+              id="auth-email"
+              type="email"
+              className="auth-input"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="name@domain.com"
+              autoComplete="username"
+              disabled={isSubmitting}
+            />
+          </div>
+
+          <div className="auth-field">
+            <div className="auth-field-header">
+              <label className="auth-label" htmlFor="auth-passcode">
+                Access Key / Passcode
+              </label>
+            </div>
+            <div className="auth-input-group">
               <input
-                id="passcode-input"
+                id="auth-passcode"
                 type={showPasscode ? 'text' : 'password'}
-                className="login-input"
-                placeholder="Enter master passcode"
+                className="auth-input"
+                placeholder="Enter access key"
                 value={passcode}
                 onChange={(e) => setPasscode(e.target.value)}
                 autoFocus
@@ -90,37 +99,62 @@ export default function LoginPage() {
               />
               <button
                 type="button"
-                className="login-toggle-visibility"
+                className="auth-input-action"
                 onClick={() => setShowPasscode(!showPasscode)}
                 tabIndex={-1}
-                aria-label="Toggle password visibility"
+                aria-label={showPasscode ? 'Hide passcode' : 'Show passcode'}
               >
-                {showPasscode ? '👁️' : '🙈'}
+                {showPasscode ? (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+                    <line x1="1" y1="1" x2="23" y2="23" />
+                  </svg>
+                ) : (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                    <circle cx="12" cy="12" r="3" />
+                  </svg>
+                )}
               </button>
             </div>
-            <span className="login-hint">Default Master Key: <code>Vinay@2026</code></span>
+          </div>
+
+          <div className="auth-options">
+            <label className="auth-checkbox-label">
+              <input
+                type="checkbox"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+                className="auth-checkbox"
+              />
+              <span>Keep terminal unlocked on this device</span>
+            </label>
           </div>
 
           <button
             type="submit"
-            className="btn btn-primary login-submit-btn"
+            className="auth-submit-btn"
             disabled={isSubmitting}
           >
             {isSubmitting ? (
-              <span className="login-loading-text">
-                <span className="login-spinner"></span> Authenticating OS...
+              <span className="auth-spinner-wrapper">
+                <span className="auth-spinner"></span>
+                <span>Authenticating...</span>
               </span>
             ) : (
-              <span>Unlock Operating System →</span>
+              <span>Sign In to EVO</span>
             )}
           </button>
         </form>
 
-        <div className="login-footer">
-          <div className="login-security-tag">
-            <span>🛡️ End-to-End Encrypted Session</span>
-            <span>•</span>
-            <span>PostgreSQL + Vector Memory</span>
+        {/* Footer Security Badge */}
+        <div className="auth-footer">
+          <div className="auth-security-badge">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+            </svg>
+            <span>Authorized Personal Intelligence Environment</span>
           </div>
         </div>
       </div>

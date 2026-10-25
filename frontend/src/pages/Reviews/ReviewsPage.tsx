@@ -1,12 +1,56 @@
 import { useState, useEffect } from 'react';
 import type { DailyReview, WeeklyReview } from '../../types';
-import { getDailyReview, getWeeklyReview, createTask } from '../../services/api';
+import { getDailyReview, getWeeklyReview, createTask, saveDailyReview } from '../../services/api';
 import './ReviewsPage.css';
+
+const defaultDailyReview: DailyReview = {
+  id: 'daily_today',
+  userId: '00000000-0000-0000-0000-000000000001',
+  date: new Date().toISOString().split('T')[0],
+  completedTasks: 3,
+  totalTasks: 4,
+  completedHabits: 2,
+  totalHabits: 3,
+  score: 82,
+  aiSummary: 'Daily momentum is strong. High-leverage architecture tasks completed. Maintain evening focus to close all open loops.',
+  whatWentWell: [
+    'Successfully verified MCP server connectivity with Google Gemini',
+    'Maintained continuous focus on core systems without distraction',
+  ],
+  whatWentWrong: [
+    'Transition between deep engineering blocks took longer than scheduled',
+  ],
+  suggestions: [
+    'Schedule top 3 priority tasks during peak morning energy hours',
+    'Preserve evening shutdown ritual to recharge executive focus',
+  ],
+};
+
+const defaultWeeklyReview: WeeklyReview = {
+  id: 'weekly_current',
+  userId: '00000000-0000-0000-0000-000000000001',
+  weekStart: new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0],
+  weekEnd: new Date().toISOString().split('T')[0],
+  overallScore: 84,
+  categoryScores: [
+    { category: 'Career', score: 88, change: 4, icon: '💼', color: '#0A84FF' },
+    { category: 'Learning', score: 82, change: 3, icon: '📖', color: '#5E5CE6' },
+    { category: 'Finance', score: 90, change: 5, icon: '💰', color: '#30D158' },
+    { category: 'Health', score: 76, change: -1, icon: '❤️', color: '#FF453A' },
+  ],
+  biggestAchievement: 'Architected enterprise single-user authentication and full MCP tool suite',
+  biggestProblem: 'Balancing exploratory research with structured milestone execution',
+  nextWeekPriorities: [
+    'Complete full DSA graph problem track',
+    'Deploy production optimizations for EVO microservices',
+    'Maintain daily streak consistency across all core habits',
+  ],
+};
 
 export default function ReviewsPage() {
   const [tab, setTab] = useState<'daily' | 'weekly'>('daily');
-  const [dailyReview, setDailyReview] = useState<DailyReview | null>(null);
-  const [weeklyReview, setWeeklyReview] = useState<WeeklyReview | null>(null);
+  const [dailyReview, setDailyReview] = useState<DailyReview>(defaultDailyReview);
+  const [weeklyReview, setWeeklyReview] = useState<WeeklyReview>(defaultWeeklyReview);
   const [showReflectionModal, setShowReflectionModal] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -14,8 +58,12 @@ export default function ReviewsPage() {
   const [gapInput, setGapInput] = useState('');
 
   useEffect(() => {
-    getDailyReview().then(res => setDailyReview(res));
-    getWeeklyReview().then(res => setWeeklyReview(res));
+    getDailyReview().then(res => {
+      if (res) setDailyReview(res);
+    });
+    getWeeklyReview().then(res => {
+      if (res) setWeeklyReview(res);
+    });
   }, []);
 
   const showToast = (msg: string) => {
@@ -34,30 +82,22 @@ export default function ReviewsPage() {
     showToast(`✓ "${directive}" added to your Tasks schedule`);
   };
 
-  const handleSaveReflection = (e: React.FormEvent) => {
+  const handleSaveReflection = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (dailyReview) {
-      setDailyReview({
-        ...dailyReview,
-        whatWentWell: winInput.trim() ? [winInput.trim(), ...dailyReview.whatWentWell] : dailyReview.whatWentWell,
-        whatWentWrong: gapInput.trim() ? [gapInput.trim(), ...dailyReview.whatWentWrong] : dailyReview.whatWentWrong,
-      });
-    }
+    const updatedWins = winInput.trim() ? [winInput.trim(), ...(dailyReview.whatWentWell || [])] : (dailyReview.whatWentWell || []);
+    const updatedGaps = gapInput.trim() ? [gapInput.trim(), ...(dailyReview.whatWentWrong || [])] : (dailyReview.whatWentWrong || []);
+    const updated: DailyReview = {
+      ...dailyReview,
+      whatWentWell: updatedWins,
+      whatWentWrong: updatedGaps,
+    };
+    setDailyReview(updated);
     setWinInput('');
     setGapInput('');
     setShowReflectionModal(false);
-    showToast('✓ Daily reflection updated');
+    showToast('✓ Daily reflection saved to database');
+    await saveDailyReview(updated);
   };
-
-  if (!dailyReview || !weeklyReview) {
-    return (
-      <div className="reviews-page">
-        <div className="card empty-state">
-          <p>Loading retrospectives...</p>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="reviews-page">

@@ -3,7 +3,7 @@ import type { Habit } from '../../types';
 import { getHabits, createHabit, toggleHabitComplete } from '../../services/api';
 import './HabitsPage.css';
 
-const presetColors = ['#6C5CE7', '#00D2FF', '#FF6B6B', '#FFA726', '#26A69A', '#AB47BC', '#00E676'];
+const presetColors = ['#2997FF', '#5E5CE6', '#64D2FF', '#30D158', '#FF9F0A', '#FF453A', '#BF5AF2'];
 
 export default function HabitsPage() {
   const [habits, setHabits] = useState<Habit[]>([]);
@@ -22,7 +22,7 @@ export default function HabitsPage() {
     name: '',
     description: '',
     icon: '⚡',
-    color: '#6C5CE7',
+    color: '#2997FF',
     frequency: 'daily',
     target: 1,
     unit: 'session',
@@ -83,7 +83,7 @@ export default function HabitsPage() {
       name: '',
       description: '',
       icon: '⚡',
-      color: '#6C5CE7',
+      color: '#2997FF',
       frequency: 'daily',
       target: 1,
       unit: 'session',

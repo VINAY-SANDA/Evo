@@ -103,7 +103,7 @@
 
 .milestone-dot.completed {
   background: var(--dot-color, var(--evo-primary));
-  box-shadow: 0 0 6px rgba(108, 92, 231, 0.3);
+  box-shadow: 0 0 6px var(--evo-primary-glow);
 }
 
 .goal-card-footer {

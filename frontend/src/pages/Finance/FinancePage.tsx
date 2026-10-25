@@ -9,8 +9,8 @@ const categoryEmojis: Record<string, string> = {
 };
 
 const categoryColors: Record<string, string> = {
-  food: '#FF6B6B', travel: '#FFA726', shopping: '#AB47BC', education: '#00D2FF',
-  bills: '#78909C', entertainment: '#FFD600', health: '#00E676', other: '#6C5CE7',
+  food: '#FF9F0A', travel: '#0A84FF', shopping: '#BF5AF2', education: '#5E5CE6',
+  bills: '#8E8E93', entertainment: '#64D2FF', health: '#30D158', other: '#2997FF',
 };
 
 export default function FinancePage() {
@@ -199,7 +199,7 @@ export default function FinancePage() {
               ) : (
                 expenses.slice(0, 5).map(exp => (
                   <div key={exp.id} className="transaction-item">
-                    <span className="transaction-icon" style={{ background: `${categoryColors[exp.category] || '#6C5CE7'}22` }}>
+                    <span className="transaction-icon" style={{ background: `${categoryColors[exp.category] || '#2997FF'}22` }}>
                       {categoryEmojis[exp.category] || '📌'}
                     </span>
                     <div className="transaction-info">
@@ -230,7 +230,7 @@ export default function FinancePage() {
             ) : (
               expenses.map(exp => (
                 <div key={exp.id} className="finance-row">
-                  <span className="finance-row-icon" style={{ background: `${categoryColors[exp.category] || '#6C5CE7'}22` }}>
+                  <span className="finance-row-icon" style={{ background: `${categoryColors[exp.category] || '#2997FF'}22` }}>
                     {categoryEmojis[exp.category] || '📌'}
                   </span>
                   <div className="finance-row-info">

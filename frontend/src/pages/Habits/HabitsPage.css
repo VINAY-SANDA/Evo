@@ -132,7 +132,7 @@
 
 .habit-day-dot.filled::before {
   background: var(--dot-fill, var(--evo-primary));
-  box-shadow: 0 0 8px rgba(108, 92, 231, 0.3);
+  box-shadow: 0 0 8px var(--evo-primary-glow);
 }
 
 .habit-day-dot.today::before {

@@ -9,8 +9,8 @@ const categoryIcons: Record<GoalCategory, string> = {
 };
 
 const categoryColors: Record<GoalCategory, string> = {
-  career: '#6C5CE7', education: '#00D2FF', finance: '#00E676', health: '#FF6B6B',
-  personal: '#FFA726', business: '#26A69A', project: '#AB47BC', other: '#78909C',
+  career: '#0A84FF', education: '#5E5CE6', finance: '#30D158', health: '#FF453A',
+  personal: '#FF9F0A', business: '#64D2FF', project: '#BF5AF2', other: '#8E8E93',
 };
 
 export default function GoalsPage() {
@@ -149,8 +149,8 @@ export default function GoalsPage() {
                 <div
                   className="goal-card-icon"
                   style={{
-                    background: `${categoryColors[goal.category] || '#6C5CE7'}22`,
-                    color: categoryColors[goal.category] || '#6C5CE7',
+                    background: `${categoryColors[goal.category] || '#2997FF'}22`,
+                    color: categoryColors[goal.category] || '#2997FF',
                   }}
                 >
                   {categoryIcons[goal.category] || '🎯'}
@@ -169,7 +169,7 @@ export default function GoalsPage() {
               <div className="goal-card-progress">
                 <div className="flex items-center justify-between" style={{ marginBottom: 'var(--space-2)' }}>
                   <span className="goal-card-progress-label">Progress</span>
-                  <span className="goal-card-progress-value" style={{ color: categoryColors[goal.category] || '#6C5CE7' }}>
+                  <span className="goal-card-progress-value" style={{ color: categoryColors[goal.category] || '#2997FF' }}>
                     {goal.progress}%
                   </span>
                 </div>
@@ -197,7 +197,7 @@ export default function GoalsPage() {
                         title={`${m.title} (${m.status})`}
                         onClick={() => toggleMilestone(m.id, goal.id)}
                         style={{
-                          '--dot-color': categoryColors[goal.category] || '#6C5CE7',
+                          '--dot-color': categoryColors[goal.category] || '#2997FF',
                           cursor: 'pointer',
                         } as React.CSSProperties}
                       />

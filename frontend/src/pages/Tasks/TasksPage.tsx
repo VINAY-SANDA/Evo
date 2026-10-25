@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import type { Task, TaskStatus, Priority } from '../../types';
-import { getTasks, createTask, toggleTaskStatus } from '../../services/api';
+import { getTasks, createTask, toggleTaskStatus, deleteTask as apiDeleteTask } from '../../services/api';
 import './TasksPage.css';
 
 const statusLabels: Record<TaskStatus, string> = {
@@ -51,7 +51,7 @@ export default function TasksPage() {
   const filteredTasks = filter === 'all'
     ? tasks
     : filter === 'today'
-    ? tasks.filter(t => t.dueDate === todayStr || t.dueDate === '2026-10-24')
+    ? tasks.filter(t => t.dueDate === todayStr)
     : tasks.filter(t => t.status === filter);
 
   const toggleTask = async (id: string) => {
@@ -64,14 +64,20 @@ export default function TasksPage() {
     await toggleTaskStatus(id);
   };
 
-  const deleteTask = (id: string) => {
+  const deleteTask = async (id: string) => {
+    const prevTasks = [...tasks];
     setTasks(prev => prev.filter(t => t.id !== id));
     showToast('Task removed');
+    const ok = await apiDeleteTask(id);
+    if (!ok) {
+      setTasks(prevTasks);
+      showToast('❌ Failed to delete task on server');
+    }
   };
 
   const getStatusCount = (status: string) => {
     if (status === 'all') return tasks.length;
-    if (status === 'today') return tasks.filter(t => t.dueDate === todayStr || t.dueDate === '2026-10-24').length;
+    if (status === 'today') return tasks.filter(t => t.dueDate === todayStr).length;
     return tasks.filter(t => t.status === status).length;
   };
 

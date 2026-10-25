@@ -7,78 +7,78 @@
 
 /* ── CSS Custom Properties ── */
 :root {
-  /* Brand Colors */
-  --evo-primary: #6C5CE7;
-  --evo-primary-light: #A29BFE;
-  --evo-primary-dark: #4A3DB8;
-  --evo-primary-glow: rgba(108, 92, 231, 0.3);
+  /* Brand Colors — Apple Pro Blue & Titanium */
+  --evo-primary: #2997FF;
+  --evo-primary-light: #70B6FF;
+  --evo-primary-dark: #0071E3;
+  --evo-primary-glow: rgba(41, 151, 255, 0.22);
 
-  --evo-accent: #00D2FF;
-  --evo-accent-light: #74E8FF;
-  --evo-accent-dark: #00A3CC;
-  --evo-accent-glow: rgba(0, 210, 255, 0.25);
+  --evo-accent: #E5E5EA;
+  --evo-accent-light: #FFFFFF;
+  --evo-accent-dark: #A1A1A6;
+  --evo-accent-glow: rgba(255, 255, 255, 0.12);
 
-  /* Status Colors */
-  --evo-success: #00E676;
-  --evo-success-light: #69F0AE;
-  --evo-success-dark: #00C853;
-  --evo-success-bg: rgba(0, 230, 118, 0.08);
+  /* Status Colors — Apple Human Interface Guidelines */
+  --evo-success: #30D158;
+  --evo-success-light: #62E384;
+  --evo-success-dark: #24A143;
+  --evo-success-bg: rgba(48, 209, 88, 0.12);
 
-  --evo-warning: #FFD600;
-  --evo-warning-light: #FFFF00;
-  --evo-warning-dark: #FFC107;
-  --evo-warning-bg: rgba(255, 214, 0, 0.08);
+  --evo-warning: #FF9F0A;
+  --evo-warning-light: #FFB340;
+  --evo-warning-dark: #C97700;
+  --evo-warning-bg: rgba(255, 159, 10, 0.12);
 
-  --evo-danger: #FF5252;
-  --evo-danger-light: #FF8A80;
-  --evo-danger-dark: #FF1744;
-  --evo-danger-bg: rgba(255, 82, 82, 0.08);
+  --evo-danger: #FF453A;
+  --evo-danger-light: #FF6961;
+  --evo-danger-dark: #D7261E;
+  --evo-danger-bg: rgba(255, 69, 58, 0.12);
 
-  --evo-info: #448AFF;
-  --evo-info-light: #82B1FF;
-  --evo-info-dark: #2962FF;
-  --evo-info-bg: rgba(68, 138, 255, 0.08);
+  --evo-info: #0A84FF;
+  --evo-info-light: #5EAEFF;
+  --evo-info-dark: #0060DF;
+  --evo-info-bg: rgba(10, 132, 255, 0.12);
 
-  /* Category Colors */
-  --evo-career: #6C5CE7;
-  --evo-learning: #00D2FF;
-  --evo-finance: #00E676;
-  --evo-health: #FF6B6B;
-  --evo-personal: #FFA726;
-  --evo-project: #AB47BC;
-  --evo-business: #26A69A;
+  /* Category Colors — Apple Palette */
+  --evo-career: #0A84FF;
+  --evo-learning: #5E5CE6;
+  --evo-finance: #30D158;
+  --evo-health: #FF453A;
+  --evo-personal: #FF9F0A;
+  --evo-project: #BF5AF2;
+  --evo-business: #64D2FF;
 
-  /* Dark Theme Surface Colors */
-  --evo-bg-deep: #0A0A0F;
-  --evo-bg-base: #0F0F17;
-  --evo-bg-surface: #161624;
-  --evo-bg-elevated: #1C1C2E;
-  --evo-bg-overlay: #222238;
-  --evo-bg-hover: #2A2A44;
-  --evo-bg-active: #32325A;
+  /* Apple Pro Dark Theme Surface Colors (Space Black & Midnight Slate) */
+  --evo-bg-deep: #000000;
+  --evo-bg-base: #0B0C0E;
+  --evo-bg-surface: #141519;
+  --evo-bg-elevated: #1C1D23;
+  --evo-bg-overlay: #23252E;
+  --evo-bg-hover: #2B2D38;
+  --evo-bg-active: #343744;
 
-  /* Glass */
-  --evo-glass: rgba(22, 22, 36, 0.65);
-  --evo-glass-border: rgba(255, 255, 255, 0.06);
-  --evo-glass-hover: rgba(30, 30, 50, 0.75);
+  /* Glass Materials — macOS Sonoma / Sequoia Frosted Glass */
+  --evo-glass: rgba(20, 21, 25, 0.76);
+  --evo-glass-border: rgba(255, 255, 255, 0.08);
+  --evo-glass-hover: rgba(28, 29, 35, 0.84);
 
-  /* Text */
-  --evo-text-primary: #F0F0F8;
-  --evo-text-secondary: #A0A0B8;
-  --evo-text-tertiary: #6B6B82;
-  --evo-text-disabled: #444460;
-  --evo-text-inverse: #0A0A0F;
+  /* Typography Colors — Apple High-Legibility Scale */
+  --evo-text-primary: #F5F5F7;
+  --evo-text-secondary: #98989D;
+  --evo-text-tertiary: #636366;
+  --evo-text-disabled: #3A3A3C;
+  --evo-text-inverse: #000000;
 
-  /* Borders */
-  --evo-border: rgba(255, 255, 255, 0.06);
-  --evo-border-subtle: rgba(255, 255, 255, 0.03);
-  --evo-border-strong: rgba(255, 255, 255, 0.12);
+  /* Borders — Apple Hairline Subtlety */
+  --evo-border: rgba(255, 255, 255, 0.08);
+  --evo-border-subtle: rgba(255, 255, 255, 0.05);
+  --evo-border-strong: rgba(255, 255, 255, 0.16);
 
-  /* Shadows */
-  --evo-shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
-  --evo-shadow-md: 0 4px 16px rgba(0, 0, 0, 0.4);
-  --evo-shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.5);
-  --evo-shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.6);
+  /* Optical Diffusion Shadows */
+  --evo-shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.4);
+  --evo-shadow-md: 0 4px 16px rgba(0, 0, 0, 0.5);
+  --evo-shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.6);
+  --evo-shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.7);
   --evo-shadow-glow: 0 0 24px var(--evo-primary-glow);
 
   /* Typography */
@@ -491,9 +491,9 @@ input::placeholder, textarea::placeholder {
 }
 
 .sidebar-link.active {
-  background: var(--evo-primary);
-  background: linear-gradient(135deg, rgba(108, 92, 231, 0.2), rgba(0, 210, 255, 0.1));
-  color: var(--evo-primary-light);
+  background: rgba(41, 151, 255, 0.12);
+  border: 1px solid rgba(41, 151, 255, 0.2);
+  color: var(--evo-primary);
   font-weight: 600;
 }
 
@@ -887,8 +887,8 @@ input::placeholder, textarea::placeholder {
 }
 
 .badge-primary {
-  background: rgba(108, 92, 231, 0.15);
-  color: var(--evo-primary-light);
+  background: rgba(41, 151, 255, 0.12);
+  color: var(--evo-primary);
 }
 
 .badge-success {
@@ -1282,8 +1282,8 @@ input::placeholder, textarea::placeholder {
 
 /* ── AI Insight Card ── */
 .ai-insight-card {
-  background: linear-gradient(135deg, rgba(108, 92, 231, 0.08), rgba(0, 210, 255, 0.05));
-  border: 1px solid rgba(108, 92, 231, 0.15);
+  background: linear-gradient(135deg, rgba(41, 151, 255, 0.08), rgba(255, 255, 255, 0.02));
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: var(--radius-lg);
   padding: var(--space-5) var(--space-6);
   position: relative;
@@ -1297,7 +1297,7 @@ input::placeholder, textarea::placeholder {
   right: -50%;
   width: 100%;
   height: 100%;
-  background: radial-gradient(circle, rgba(108, 92, 231, 0.08), transparent 70%);
+  background: radial-gradient(circle, rgba(41, 151, 255, 0.06), transparent 70%);
   pointer-events: none;
 }
 
@@ -1764,12 +1764,12 @@ input::placeholder, textarea::placeholder {
   position: fixed;
   top: 24px;
   right: 24px;
-  background: rgba(18, 20, 32, 0.95);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  background: rgba(22, 23, 27, 0.92);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   color: var(--evo-text-primary);
-  border: 1px solid var(--evo-primary);
-  box-shadow: 0 8px 32px rgba(108, 92, 231, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.05);
   padding: var(--space-3) var(--space-6);
   border-radius: var(--radius-full);
   font-size: var(--text-sm);
