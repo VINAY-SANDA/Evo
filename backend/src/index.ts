@@ -96,6 +96,7 @@ app.use('/api/reviews', reviewsRouter);
 // ── MCP Server Endpoints (for Google Gemini & Remote AI Clients) ──
 app.use('/mcp', mcpRouter);
 app.use('/api/mcp', mcpRouter);
+app.use('/sse', mcpRouter);
 
 // ── AI Conversation & Strategy ──
 app.post('/api/ai/chat', async (req: Request, res: Response) => {
