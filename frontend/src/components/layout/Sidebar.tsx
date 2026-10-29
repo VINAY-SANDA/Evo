@@ -9,20 +9,20 @@ interface SidebarProps {
 }
 
 const mainNav = [
-  { path: '/', icon: '🏠', label: 'Home' },
-  { path: '/goals', icon: '🎯', label: 'Goals' },
-  { path: '/tasks', icon: '✅', label: 'Tasks' },
-  { path: '/progress', icon: '📊', label: 'Progress' },
-  { path: '/ai', icon: '✨', label: 'EVO AI' },
+  { path: '/', icon: '⌂', label: 'Home' },
+  { path: '/goals', icon: '◎', label: 'Goals' },
+  { path: '/tasks', icon: '✓', label: 'Tasks' },
+  { path: '/progress', icon: '↗', label: 'Progress' },
+  { path: '/ai', icon: '✦', label: 'Plan with EVO' },
 ];
 
 const secondaryNav = [
-  { path: '/habits', icon: '🔥', label: 'Habits' },
-  { path: '/finance', icon: '💰', label: 'Finance' },
-  { path: '/learning', icon: '📖', label: 'Learning' },
-  { path: '/projects', icon: '🚀', label: 'Projects' },
-  { path: '/reminders', icon: '⏰', label: 'Reminders' },
-  { path: '/reviews', icon: '📝', label: 'Reviews' },
+  { path: '/habits', icon: '◌', label: 'Habits' },
+  { path: '/finance', icon: '₹', label: 'Finance' },
+  { path: '/learning', icon: '◫', label: 'Learning' },
+  { path: '/projects', icon: '◇', label: 'Projects' },
+  { path: '/reminders', icon: '◷', label: 'Reminders' },
+  { path: '/reviews', icon: '▤', label: 'Reviews' },
 ];
 
 export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
@@ -44,14 +44,14 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
   }, [location.pathname]);
 
   const bottomNav = [
-    { path: '/notifications', icon: '🔔', label: 'Notifications', badge: unreadCount > 0 ? unreadCount : undefined },
-    { path: '/settings', icon: '⚙️', label: 'Settings' },
+    { path: '/notifications', icon: '◉', label: 'Notifications', badge: unreadCount > 0 ? unreadCount : undefined },
+    { path: '/settings', icon: '◍', label: 'Settings' },
   ];
 
   return (
     <aside className={`sidebar ${collapsed ? 'collapsed' : ''}`}>
-      <div className="sidebar-logo" onClick={onToggle} style={{ cursor: 'pointer' }}>
-        <div className="sidebar-logo-icon">E</div>
+      <div className="sidebar-logo" onClick={onToggle} style={{ cursor: 'pointer' }} aria-label="Toggle navigation">
+        <img className="sidebar-logo-icon" src="/brand/evo-mark.png" alt="" />
         <span className="sidebar-logo-text">EVO</span>
       </div>
 

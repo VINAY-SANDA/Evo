@@ -206,6 +206,8 @@ export interface LearningTopic {
   notes?: string;
   resourceUrl?: string;
   nextReviewDate?: string | null;
+  lastReviewedAt?: string | null;
+  reviewIntervalDays: number;
 }
 
 // ── Projects ──

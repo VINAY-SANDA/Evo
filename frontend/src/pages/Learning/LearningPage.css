@@ -313,10 +313,17 @@
 .study-focus-controls { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; justify-content: flex-end; }
 .study-focus-clock { font-variant-numeric: tabular-nums; font-size: 2rem; }
 .study-focus-total, .study-focus-hint { color: var(--evo-text-secondary); font-size: var(--text-sm); }
+.learning-loading-state { color: var(--evo-text-secondary); padding: var(--space-4); }
+.learning-error-state { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); color: var(--evo-danger); padding: var(--space-4); }
 .learning-review-queue { display: grid; gap: var(--space-4); margin-bottom: var(--space-5); border-color: color-mix(in srgb, var(--evo-primary) 35%, var(--evo-border)); }
 .learning-review-list { display: grid; gap: var(--space-2); }
 .learning-review-item { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); padding: var(--space-3); border-radius: var(--radius-md); background: var(--evo-surface-secondary); }
+.learning-history-card { display: grid; gap: var(--space-3); }
+.learning-history-list { display: grid; gap: var(--space-2); }
+.learning-history-item { display: grid; grid-template-columns: 1fr auto auto; gap: var(--space-3); align-items: center; padding: var(--space-3); border-radius: var(--radius-md); background: var(--evo-surface-secondary); font-size: var(--text-sm); }
+.learning-history-item time { color: var(--evo-text-secondary); font-size: var(--text-xs); }
 .topic-notes { margin: var(--space-1) 0; color: var(--evo-text-secondary); font-size: var(--text-sm); }
 .topic-resources { display: flex; gap: var(--space-3); flex-wrap: wrap; color: var(--evo-text-secondary); font-size: var(--text-xs); }
 @media (max-width: 600px) { .learning-review-item { align-items: flex-start; flex-direction: column; } }
+@media (max-width: 600px) { .learning-history-item { grid-template-columns: 1fr auto; } .learning-history-item time { grid-column: 1 / -1; } }
 @media (max-width: 750px) { .study-focus-card { align-items: flex-start; flex-direction: column; } .study-focus-controls { justify-content: flex-start; } }

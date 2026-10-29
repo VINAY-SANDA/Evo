@@ -198,16 +198,6 @@ CREATE TABLE IF NOT EXISTS savings_contributions (
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS learning_study_sessions (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    subject_id UUID NOT NULL REFERENCES learning_subjects(id) ON DELETE CASCADE,
-    topic_id UUID REFERENCES learning_topics(id) ON DELETE SET NULL,
-    duration_minutes INT NOT NULL CHECK (duration_minutes > 0),
-    note TEXT,
-    studied_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
 ALTER TABLE tasks ADD COLUMN IF NOT EXISTS recurrence_frequency VARCHAR(16);
 ALTER TABLE tasks ADD COLUMN IF NOT EXISTS recurrence_series_id UUID;
 ALTER TABLE habits ADD COLUMN IF NOT EXISTS schedule_days INT[];
@@ -238,7 +228,19 @@ CREATE TABLE IF NOT EXISTS learning_topics (
     notes TEXT,
     resource_url TEXT,
     next_review_date DATE,
+    last_reviewed_at DATE,
+    review_interval_days INT NOT NULL DEFAULT 3 CHECK (review_interval_days BETWEEN 1 AND 365),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS learning_study_sessions (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    subject_id UUID NOT NULL REFERENCES learning_subjects(id) ON DELETE CASCADE,
+    topic_id UUID REFERENCES learning_topics(id) ON DELETE SET NULL,
+    duration_minutes INT NOT NULL CHECK (duration_minutes > 0),
+    note TEXT,
+    studied_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- ── Reviews & Retrospectives ──

@@ -372,11 +372,22 @@ export async function getLearningSubjects(): Promise<LearningSubject[]> {
   return remote?.subjects || [];
 }
 
+export async function getLearningSubjectsWithStatus(): Promise<{ subjects: LearningSubject[]; ok: boolean }> {
+  const remote = await apiRequest<{ subjects: LearningSubject[] }>('/api/learning/subjects');
+  return { subjects: remote?.subjects || [], ok: remote !== null };
+}
+
 export async function getLearningTopics(subjectId?: string): Promise<LearningTopic[]> {
   if (!subjectId) return [];
   const url = `/api/learning/subjects/${subjectId}/topics`;
   const remote = await apiRequest<{ topics: LearningTopic[] }>(url);
   return remote?.topics || [];
+}
+
+export async function getLearningTopicsWithStatus(subjectId?: string): Promise<{ topics: LearningTopic[]; ok: boolean }> {
+  if (!subjectId) return { topics: [], ok: true };
+  const remote = await apiRequest<{ topics: LearningTopic[] }>(`/api/learning/subjects/${subjectId}/topics`);
+  return { topics: remote?.topics || [], ok: remote !== null };
 }
 
 export async function createLearningSubject(subject: Partial<LearningSubject>): Promise<LearningSubject | null> {

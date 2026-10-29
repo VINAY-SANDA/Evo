@@ -1,18 +1,36 @@
 import { useState, useEffect } from 'react';
-import type { LearningSubject, LearningTopic } from '../../types';
+import type { LearningSubject, LearningTopic, StudySession } from '../../types';
 import {
   createLearningSubject,
   createTopic,
   deleteLearningSubject,
   deleteLearningTopic,
-  getLearningSubjects,
+  getLearningSubjectsWithStatus,
   getLearningTopics,
+  getLearningTopicsWithStatus,
   getStudySessions,
   logStudySession,
   updateLearningTopic,
   updateTopicStatus,
 } from '../../services/api';
 import './LearningPage.css';
+
+const FOCUS_SESSION_KEY = 'evo.learning.focus-session';
+const FOCUS_SPRINT_SECONDS = 25 * 60;
+
+type ReviewTopic = LearningTopic & { subjectName: string; subjectIcon: string };
+
+function localDate(offsetDays = 0): string {
+  const date = new Date();
+  date.setDate(date.getDate() + offsetDays);
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${date.getFullYear()}-${month}-${day}`;
+}
+
+function focusElapsed(startedAt: number, elapsedBeforeRun: number): number {
+  return Math.min(FOCUS_SPRINT_SECONDS, elapsedBeforeRun + Math.floor((Date.now() - startedAt) / 1000));
+}
 
 export default function LearningPage() {
   const [subjects, setSubjects] = useState<LearningSubject[]>([]);
@@ -22,11 +40,18 @@ export default function LearningPage() {
   const [showTopicModal, setShowTopicModal] = useState(false);
   const [showSubjectModal, setShowSubjectModal] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [focusTopicId, setFocusTopicId] = useState<string | null>(null);
+  const [focusSubjectId, setFocusSubjectId] = useState<string | null>(null);
   const [focusSeconds, setFocusSeconds] = useState(0);
   const [focusRunning, setFocusRunning] = useState(false);
+  const [focusStartedAt, setFocusStartedAt] = useState<number | null>(null);
+  const [focusElapsedBeforeRun, setFocusElapsedBeforeRun] = useState(0);
   const [recentStudyMinutes, setRecentStudyMinutes] = useState(0);
+  const [studySessions, setStudySessions] = useState<StudySession[]>([]);
+  const [reviewTopics, setReviewTopics] = useState<ReviewTopic[]>([]);
 
   const [newSubjectName, setNewSubjectName] = useState('');
   const [newTopicName, setNewTopicName] = useState('');
@@ -34,21 +59,87 @@ export default function LearningPage() {
   const [newTopicNotes, setNewTopicNotes] = useState('');
   const [newTopicResource, setNewTopicResource] = useState('');
   const [newTopicReviewDate, setNewTopicReviewDate] = useState('');
+  const [newTopicReviewInterval, setNewTopicReviewInterval] = useState(3);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3000);
   };
 
+  async function refreshSubjects() {
+    const { subjects: subjs, ok } = await getLearningSubjectsWithStatus();
+    if (!ok) {
+      setLoadError('Learning data could not be loaded. Check your connection and try again.');
+      return [];
+    }
+    setLoadError(null);
+    setSubjects(subjs);
+    setSelectedSubjectId(selected => subjs.some(subject => subject.id === selected)
+      ? selected
+      : (focusSubjectId && subjs.some(subject => subject.id === focusSubjectId) ? focusSubjectId : subjs[0]?.id || ''));
+    return subjs;
+  }
+
+  async function refreshTopics(subjectId = selectedSubjectId) {
+    if (!subjectId) {
+      setTopics([]);
+      return [];
+    }
+    const { topics: result, ok } = await getLearningTopicsWithStatus(subjectId);
+    if (!ok) {
+      setLoadError('Topics could not be loaded. Check your connection and try again.');
+      return [];
+    }
+    setLoadError(null);
+    setTopics(result);
+    return result;
+  }
+
+  const clearFocusSession = (message?: string) => {
+    setFocusTopicId(null);
+    setFocusSubjectId(null);
+    setFocusSeconds(0);
+    setFocusElapsedBeforeRun(0);
+    setFocusStartedAt(null);
+    setFocusRunning(false);
+    window.localStorage.removeItem(FOCUS_SESSION_KEY);
+    if (message) showToast(message);
+  };
+
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(window.localStorage.getItem(FOCUS_SESSION_KEY) || 'null');
+      if (saved && typeof saved.topicId === 'string' && typeof saved.subjectId === 'string') {
+        const elapsed = saved.running && typeof saved.startedAt === 'number'
+          ? focusElapsed(saved.startedAt, Number(saved.elapsedBeforeRun) || 0)
+          : Math.max(0, Number(saved.elapsedBeforeRun) || 0);
+        setFocusTopicId(saved.topicId);
+        setFocusSubjectId(saved.subjectId);
+        setFocusElapsedBeforeRun(elapsed);
+        setFocusSeconds(elapsed);
+        setFocusStartedAt(saved.running && elapsed < FOCUS_SPRINT_SECONDS ? Date.now() : null);
+        setFocusRunning(Boolean(saved.running) && elapsed < FOCUS_SPRINT_SECONDS);
+      }
+    } catch {
+      window.localStorage.removeItem(FOCUS_SESSION_KEY);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!focusTopicId || !focusSubjectId) return;
+    window.localStorage.setItem(FOCUS_SESSION_KEY, JSON.stringify({
+      topicId: focusTopicId,
+      subjectId: focusSubjectId,
+      elapsedBeforeRun: focusElapsedBeforeRun,
+      startedAt: focusStartedAt,
+      running: focusRunning,
+    }));
+  }, [focusTopicId, focusSubjectId, focusElapsedBeforeRun, focusStartedAt, focusRunning]);
+
   useEffect(() => {
     let current = true;
-    getLearningSubjects().then(subjs => {
-      if (!current) return;
-      setSubjects(subjs);
-      setSelectedSubjectId(selected => subjs.some(subject => subject.id === selected)
-        ? selected
-        : subjs[0]?.id || '');
-    });
+    setLoading(true);
+    refreshSubjects().finally(() => { if (current) setLoading(false); });
     return () => { current = false; };
   }, []);
 
@@ -58,21 +149,38 @@ export default function LearningPage() {
       setTopics([]);
       return () => { current = false; };
     }
-    getLearningTopics(selectedSubjectId).then(result => {
-      if (current) setTopics(result);
+    getLearningTopicsWithStatus(selectedSubjectId).then(({ topics: result, ok }) => {
+      if (!current) return;
+      if (!ok) {
+        setLoadError('Topics could not be loaded. Check your connection and try again.');
+        return;
+      }
+      setLoadError(null);
+      setTopics(result);
     });
     return () => { current = false; };
   }, [selectedSubjectId]);
 
   useEffect(() => {
-    if (!focusRunning) return;
-    const timer = window.setInterval(() => setFocusSeconds(seconds => seconds + 1), 1000);
-    return () => window.clearInterval(timer);
-  }, [focusRunning]);
+    if (focusSubjectId && subjects.some(subject => subject.id === focusSubjectId)) {
+      setSelectedSubjectId(focusSubjectId);
+    }
+  }, [focusSubjectId, subjects]);
 
   useEffect(() => {
-    if (focusRunning && focusSeconds >= 25 * 60) {
+    if (!focusRunning || !focusStartedAt) return;
+    const updateElapsed = () => setFocusSeconds(focusElapsed(focusStartedAt, focusElapsedBeforeRun));
+    updateElapsed();
+    const timer = window.setInterval(updateElapsed, 1000);
+    return () => window.clearInterval(timer);
+  }, [focusRunning, focusStartedAt, focusElapsedBeforeRun]);
+
+  useEffect(() => {
+    if (focusRunning && focusSeconds >= FOCUS_SPRINT_SECONDS) {
       setFocusRunning(false);
+      setFocusStartedAt(null);
+      setFocusElapsedBeforeRun(FOCUS_SPRINT_SECONDS);
+      setFocusSeconds(FOCUS_SPRINT_SECONDS);
       showToast('25-minute focus sprint complete. Save it to your study history.');
     }
   }, [focusRunning, focusSeconds]);
@@ -81,42 +189,75 @@ export default function LearningPage() {
     if (!selectedSubjectId) return;
     getStudySessions(selectedSubjectId).then(sessions => {
       const weekAgo = Date.now() - 7 * 86400000;
+      setStudySessions(sessions);
       setRecentStudyMinutes(sessions.filter(session => new Date(session.studiedAt).getTime() >= weekAgo).reduce((sum, session) => sum + Number(session.durationMinutes), 0));
     });
   }, [selectedSubjectId]);
 
+  useEffect(() => {
+    let current = true;
+    Promise.all(subjects.map(async subject => ({ subject, topics: await getLearningTopics(subject.id) }))).then(results => {
+      if (!current) return;
+      setReviewTopics(results.flatMap(({ subject, topics }) => topics.map(topic => ({ ...topic, subjectName: subject.name, subjectIcon: subject.icon }))));
+    });
+    return () => { current = false; };
+  }, [subjects]);
+
   const currentSubject = subjects.find(s => s.id === selectedSubjectId) || subjects[0] || null;
-  const todayDate = new Date().toISOString().slice(0, 10);
-  const dueReviewTopics = topics.filter(topic => topic.nextReviewDate && topic.nextReviewDate <= todayDate);
+  const todayDate = localDate();
+  const dueReviewTopics = reviewTopics.filter(topic => topic.nextReviewDate && topic.nextReviewDate <= todayDate);
 
   const startFocus = (topicId: string) => {
+    if (!currentSubject) return;
     setFocusTopicId(topicId);
+    setFocusSubjectId(currentSubject.id);
     setFocusSeconds(0);
+    setFocusElapsedBeforeRun(0);
+    setFocusStartedAt(Date.now());
+    setFocusRunning(true);
+  };
+
+  const pauseOrResumeFocus = () => {
+    if (focusRunning && focusStartedAt) {
+      const elapsed = focusElapsed(focusStartedAt, focusElapsedBeforeRun);
+      setFocusSeconds(elapsed);
+      setFocusElapsedBeforeRun(elapsed);
+      setFocusStartedAt(null);
+      setFocusRunning(false);
+      return;
+    }
+    setFocusElapsedBeforeRun(focusSeconds);
+    setFocusStartedAt(Date.now());
     setFocusRunning(true);
   };
 
   const saveFocusSession = async () => {
     const topic = topics.find(item => item.id === focusTopicId);
-    if (!topic || !currentSubject) return;
+    const subject = subjects.find(item => item.id === focusSubjectId);
+    if (!topic || !subject || topic.subjectId !== subject.id) {
+      clearFocusSession('This focus topic is no longer available. The unsaved session was cancelled.');
+      return;
+    }
     const minutes = Math.max(1, Math.round(focusSeconds / 60));
     setFocusRunning(false);
-    const saved = await logStudySession({ subjectId: currentSubject.id, topicId: topic.id, durationMinutes: minutes, note: 'EVO focus session' });
+    setFocusStartedAt(null);
+    setFocusElapsedBeforeRun(focusSeconds);
+    const saved = await logStudySession({ subjectId: subject.id, topicId: topic.id, durationMinutes: minutes, note: 'EVO focus session' });
     if (!saved) { showToast('Focus time could not be saved. Please try again.'); return; }
-    setTopics(items => items.map(item => item.id === topic.id ? { ...item, timeSpentMinutes: item.timeSpentMinutes + minutes } : item));
-    setSubjects(items => items.map(item => item.id === currentSubject.id ? { ...item, totalTimeMinutes: item.totalTimeMinutes + minutes } : item));
+    await Promise.all([refreshSubjects(), refreshTopics(subject.id)]);
+    setStudySessions(items => [saved, ...items]);
     setRecentStudyMinutes(value => value + minutes);
-    setFocusTopicId(null);
-    setFocusSeconds(0);
+    clearFocusSession();
     showToast(`${minutes} minutes added to ${topic.name}.`);
   };
 
   const finishReview = async (topic: LearningTopic) => {
-    const next = new Date();
-    next.setDate(next.getDate() + 3);
-    const updated = await updateLearningTopic(topic.id, { nextReviewDate: next.toISOString().slice(0, 10), status: 'completed' });
+    const interval = topic.reviewIntervalDays || 3;
+    const updated = await updateLearningTopic(topic.id, { lastReviewedAt: localDate(), nextReviewDate: localDate(interval) });
     if (!updated) { showToast('Review schedule could not be updated.'); return; }
     setTopics(items => items.map(item => item.id === topic.id ? updated : item));
-    showToast(`Review saved. Revisit ${topic.name} in three days.`);
+    setReviewTopics(items => items.map(item => item.id === topic.id ? { ...updated, subjectName: item.subjectName, subjectIcon: item.subjectIcon } : item));
+    showToast(`Review saved. Revisit ${topic.name} in ${interval} day${interval === 1 ? '' : 's'}.`);
   };
 
   const subjectTopics = currentSubject ? topics.filter(t => t.subjectId === currentSubject.id) : [];
@@ -148,6 +289,7 @@ export default function LearningPage() {
       totalTopics: totalCount,
       progress: totalCount ? Math.round((completedCount / totalCount) * 100) : 0,
     } : subject));
+    void refreshSubjects();
   };
 
   const handleAddSubject = async (event: React.FormEvent) => {
@@ -180,6 +322,7 @@ export default function LearningPage() {
       notes: newTopicNotes.trim(),
       resourceUrl: newTopicResource.trim(),
       nextReviewDate: newTopicReviewDate || undefined,
+      reviewIntervalDays: newTopicReviewInterval,
     });
     setSaving(false);
 
@@ -189,6 +332,7 @@ export default function LearningPage() {
         ...s,
         totalTopics: s.totalTopics + 1,
       } : s));
+      void refreshSubjects();
       showToast(`Topic “${newTop.name}” added to ${subject.name}.`);
     } else {
       showToast('Could not add this topic. Please try again.');
@@ -199,10 +343,15 @@ export default function LearningPage() {
     setNewTopicNotes('');
     setNewTopicResource('');
     setNewTopicReviewDate('');
+    setNewTopicReviewInterval(3);
     setShowTopicModal(false);
   };
 
   const handleDeleteSubject = async (subject: LearningSubject) => {
+    if (focusSubjectId === subject.id) {
+      showToast('Cancel or save the active focus session before deleting its learning track.');
+      return;
+    }
     if (!window.confirm(`Delete “${subject.name}” and all its topics? This cannot be undone.`)) return;
     const deleted = await deleteLearningSubject(subject.id);
     if (!deleted) {
@@ -216,25 +365,17 @@ export default function LearningPage() {
   };
 
   const handleDeleteTopic = async (topic: LearningTopic) => {
+    if (focusTopicId === topic.id) {
+      showToast('Cancel or save the active focus session before deleting its topic.');
+      return;
+    }
     if (!window.confirm(`Delete “${topic.name}”? This cannot be undone.`)) return;
     const deleted = await deleteLearningTopic(topic.id);
     if (!deleted) {
       showToast('Could not delete this topic. Please try again.');
       return;
     }
-    const remaining = topics.filter(item => item.id !== topic.id);
-    setTopics(remaining);
-    setSubjects(prev => prev.map(subject => {
-      if (subject.id !== topic.subjectId) return subject;
-      const completedTopics = remaining.filter(item => item.status === 'completed').length;
-      return {
-        ...subject,
-        totalTopics: remaining.length,
-        completedTopics,
-        progress: remaining.length ? Math.round((completedTopics / remaining.length) * 100) : 0,
-        totalTimeMinutes: remaining.reduce((total, item) => total + item.timeSpentMinutes, 0),
-      };
-    }));
+    await Promise.all([refreshSubjects(), refreshTopics(topic.subjectId)]);
     showToast(`Topic “${topic.name}” deleted.`);
   };
 
@@ -270,18 +411,32 @@ export default function LearningPage() {
         </div>
       </div>
 
+      {loading && <div className="card learning-loading-state" role="status">Loading learning tracks…</div>}
+      {loadError && <div className="card learning-error-state" role="alert"><span>{loadError}</span><button className="btn btn-secondary sm" onClick={() => { void refreshSubjects(); void refreshTopics(); }}>Try again</button></div>}
+
       <section className="card study-focus-card" aria-label="Study focus timer">
         <div><span className="study-focus-eyebrow">FOCUS SPRINT</span><h2>{focusTopicId ? topics.find(topic => topic.id === focusTopicId)?.name || 'Study session' : 'Ready for a focused session?'}</h2><p>Start a 25-minute sprint from any topic. Stop early or let it run, then save the time to your study history.</p></div>
         <div className="study-focus-controls">
           <strong className="study-focus-clock">{String(Math.floor(focusSeconds / 60)).padStart(2, '0')}:{String(focusSeconds % 60).padStart(2, '0')}</strong>
           <span className="study-focus-total">Recent study time: {recentStudyMinutes} min</span>
-          {focusTopicId ? <><button className="btn btn-secondary" onClick={() => setFocusRunning(running => !running)}>{focusRunning ? 'Pause' : 'Resume'}</button><button className="btn btn-primary" onClick={() => void saveFocusSession()} disabled={focusSeconds < 30}>Save session</button></> : <span className="study-focus-hint">Choose a topic below to start</span>}
+          {focusTopicId ? <><button className="btn btn-secondary" onClick={pauseOrResumeFocus}>{focusRunning ? 'Pause' : 'Resume'}</button><button className="btn btn-primary" onClick={() => void saveFocusSession()} disabled={focusSeconds < 30}>Save session</button><button className="btn btn-ghost" onClick={() => clearFocusSession('Focus session cancelled.')}>Cancel</button></> : <span className="study-focus-hint">Choose a topic below to start</span>}
         </div>
       </section>
 
       {dueReviewTopics.length > 0 && <section className="card learning-review-queue">
         <div><h2 className="card-title">🧠 Ready to review</h2><p className="project-template-caption">Short retrieval practice helps topics stick. Your next review is scheduled three days after you finish.</p></div>
-        <div className="learning-review-list">{dueReviewTopics.map(topic => <div className="learning-review-item" key={topic.id}><span>{currentSubject?.icon} {topic.name}</span><button className="btn btn-secondary sm" onClick={() => void finishReview(topic)}>Mark reviewed · schedule next</button></div>)}</div>
+        <div className="learning-review-list">{dueReviewTopics.map(topic => <div className="learning-review-item" key={topic.id}><span>{topic.subjectIcon} <strong>{topic.subjectName}</strong> · {topic.name}</span><button className="btn btn-secondary sm" onClick={() => void finishReview(topic)}>Mark reviewed · next in {topic.reviewIntervalDays || 3}d</button></div>)}</div>
+      </section>}
+
+      {currentSubject && studySessions.length > 0 && <section className="card learning-history-card" aria-label="Recent study history">
+        <div><h2 className="card-title">Recent study history</h2><p className="project-template-caption">Time saved to {currentSubject.name}.</p></div>
+        <div className="learning-history-list">
+          {studySessions.slice(0, 5).map(session => <div className="learning-history-item" key={session.id}>
+            <span>{session.topicName || 'Track study'}{session.note ? ` · ${session.note}` : ''}</span>
+            <strong>{session.durationMinutes} min</strong>
+            <time>{new Date(session.studiedAt).toLocaleDateString('en-IN')}</time>
+          </div>)}
+        </div>
       </section>}
 
       {/* Subject Tabs / Cards Carousel */}
@@ -455,6 +610,7 @@ export default function LearningPage() {
                   <div className="form-group"><label className="form-label">Notes</label><textarea className="form-input" rows={2} value={newTopicNotes} onChange={event => setNewTopicNotes(event.target.value)} placeholder="Key ideas or questions to remember" /></div>
                   <div className="form-group"><label className="form-label">Study resource link</label><input className="form-input" type="url" value={newTopicResource} onChange={event => setNewTopicResource(event.target.value)} placeholder="https://…" /></div>
                   <div className="form-group"><label className="form-label">Next review date</label><input className="form-input" type="date" value={newTopicReviewDate} onChange={event => setNewTopicReviewDate(event.target.value)} /></div>
+                  <div className="form-group"><label className="form-label">Review interval</label><select className="form-input" value={newTopicReviewInterval} onChange={event => setNewTopicReviewInterval(Number(event.target.value))}><option value={1}>1 day</option><option value={3}>3 days</option><option value={7}>1 week</option><option value={14}>2 weeks</option><option value={30}>1 month</option></select></div>
                   <div className="form-group">
                     <label className="form-label">Difficulty</label>
                     <select

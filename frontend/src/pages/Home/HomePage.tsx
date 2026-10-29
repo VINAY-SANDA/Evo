@@ -133,6 +133,11 @@ export default function HomePage() {
     <div className="home-page">
       {/* ── Hero Stats ── */}
       <section className="home-hero animate-fade-in-up">
+        <div className="hero-copy">
+          <p className="hero-eyebrow">TODAY</p>
+          <h1>Make room for what matters.</h1>
+          <p>Keep the plan small, visible, and easy to act on.</p>
+        </div>
         <div className="hero-main">
           <div className="hero-score">
             <CircularProgress value={overallScore} size={140} strokeWidth={10} color="url(#heroGradient)" />
@@ -144,22 +149,22 @@ export default function HomePage() {
                 </linearGradient>
               </defs>
             </svg>
-            <p className="hero-score-label">Overall Progress</p>
+            <p className="hero-score-label">Weekly rhythm</p>
           </div>
           <div className="hero-stats">
             <div className="hero-stat-item" style={{ cursor: 'pointer' }} onClick={() => navigate('/tasks')}>
               <span className="hero-stat-value">{todayCompleted}/{todayTotal}</span>
-              <span className="hero-stat-label">Tasks Done</span>
+              <span className="hero-stat-label">tasks complete</span>
             </div>
             <div className="hero-stat-divider" />
             <div className="hero-stat-item" style={{ cursor: 'pointer' }} onClick={() => navigate('/habits')}>
               <span className="hero-stat-value">{habitsCompleted}/{habitsTotal}</span>
-              <span className="hero-stat-label">Habits Maintained</span>
+              <span className="hero-stat-label">habits complete</span>
             </div>
             <div className="hero-stat-divider" />
             <div className="hero-stat-item" style={{ cursor: 'pointer' }} onClick={() => navigate('/finance')}>
               <span className="hero-stat-value">₹{todaySpent.toLocaleString()}</span>
-              <span className="hero-stat-label">Spent Today</span>
+              <span className="hero-stat-label">spent today</span>
             </div>
           </div>
         </div>
@@ -169,7 +174,7 @@ export default function HomePage() {
         {/* ── Today's Priorities ── */}
         <section className="card animate-fade-in-up stagger-1">
           <div className="card-header">
-            <h2 className="card-title">Today's Priorities</h2>
+            <h2 className="card-title">Priorities</h2>
             <span className="card-action" onClick={() => navigate('/tasks')} style={{ cursor: 'pointer' }}>
               View All →
             </span>
@@ -210,7 +215,7 @@ export default function HomePage() {
         {/* ── Habits ── */}
         <section className="card animate-fade-in-up stagger-2">
           <div className="card-header">
-            <h2 className="card-title">Today's Habits</h2>
+            <h2 className="card-title">Habits</h2>
             <span className="card-action" onClick={() => navigate('/habits')} style={{ cursor: 'pointer' }}>
               {habitsCompleted}/{habitsTotal} →
             </span>
@@ -242,7 +247,7 @@ export default function HomePage() {
         {/* ── Savings ── */}
         <section className="card animate-fade-in-up stagger-3">
           <div className="card-header">
-            <h2 className="card-title">Savings & Capital Target</h2>
+            <h2 className="card-title">Savings target</h2>
             <span className="card-action" onClick={() => navigate('/finance')} style={{ cursor: 'pointer' }}>
               Details →
             </span>
@@ -281,7 +286,7 @@ export default function HomePage() {
         {/* ── Goal Progress ── */}
         <section className="card animate-fade-in-up stagger-4">
           <div className="card-header">
-            <h2 className="card-title">Domain Velocity Scores</h2>
+            <h2 className="card-title">Progress by area</h2>
             <span className="card-action" onClick={() => navigate('/goals')} style={{ cursor: 'pointer' }}>
               All Goals →
             </span>
@@ -318,15 +323,14 @@ export default function HomePage() {
       {/* ── AI Insight ── */}
       <section className="ai-insight-card animate-fade-in-up stagger-5" style={{ marginTop: 'var(--space-6)' }}>
         <div className="ai-insight-header">
-          <span>✨</span>
-          <span>EVO Executive Insight</span>
+          <span>Plan note</span>
         </div>
         <p className="ai-insight-text">
-          {aiInsight || 'Welcome to EVO. Your tasks, habits, and vision goals are synchronized with live PostgreSQL.'}
+          {aiInsight || 'Start with one meaningful task, then let the rest of the day take shape around it.'}
         </p>
         <div className="ai-insight-actions">
           <button className="btn btn-primary btn-sm" onClick={() => navigate('/ai')}>
-            Open AI Strategic Coach →
+            Reflect with EVO →
           </button>
           <button className="btn btn-secondary btn-sm" onClick={() => navigate('/tasks')}>
             Review Schedule
@@ -338,19 +342,19 @@ export default function HomePage() {
       <section className="quick-actions animate-fade-in-up stagger-6">
         <button className="quick-action-btn" onClick={() => navigate('/tasks')}>
           <span>➕</span>
-          <span>New Task</span>
+          <span>Add task</span>
         </button>
         <button className="quick-action-btn" onClick={() => navigate('/goals')}>
           <span>🎯</span>
-          <span>New Goal</span>
+          <span>Add goal</span>
         </button>
         <button className="quick-action-btn" onClick={() => navigate('/finance')}>
           <span>💰</span>
-          <span>Log Expense</span>
+          <span>Record expense</span>
         </button>
         <button className="quick-action-btn" onClick={() => navigate('/reviews')}>
           <span>📝</span>
-          <span>Daily Review</span>
+          <span>Daily reflection</span>
         </button>
       </section>
     </div>

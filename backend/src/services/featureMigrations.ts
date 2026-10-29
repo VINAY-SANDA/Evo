@@ -20,6 +20,8 @@ export async function ensureFeatureTables(): Promise<void> {
     ALTER TABLE learning_topics ADD COLUMN IF NOT EXISTS notes TEXT;
     ALTER TABLE learning_topics ADD COLUMN IF NOT EXISTS resource_url TEXT;
     ALTER TABLE learning_topics ADD COLUMN IF NOT EXISTS next_review_date DATE;
+    ALTER TABLE learning_topics ADD COLUMN IF NOT EXISTS last_reviewed_at DATE;
+    ALTER TABLE learning_topics ADD COLUMN IF NOT EXISTS review_interval_days INT NOT NULL DEFAULT 3;
 
     CREATE TABLE IF NOT EXISTS finance_budgets (
       id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),

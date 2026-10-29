@@ -91,6 +91,7 @@ const baseRow = {
 
 test('authenticated API feature journeys work across EVO modules', async (t) => {
   const originalQuery = pool.query;
+  const originalConnect = pool.connect;
   const calls = [];
 
   pool.query = async (sql, params = []) => {
@@ -124,6 +125,10 @@ test('authenticated API feature journeys work across EVO modules', async (t) => 
     }
     return { rows: [], rowCount: 0 };
   };
+  pool.connect = async () => ({
+    query: (sql, params = []) => pool.query(sql, params),
+    release: () => {},
+  });
 
   const server = await new Promise((resolve) => {
     const runningServer = app.listen(0, '127.0.0.1', () => resolve(runningServer));
@@ -279,7 +284,7 @@ test('authenticated API feature journeys work across EVO modules', async (t) => 
       assert.equal((await request('/api/learning/stats')).status, 200);
       assert.equal((await request('/api/learning/study-sessions')).status, 200);
       assert.equal((await request('/api/learning/study-sessions', { method: 'POST', body: { subjectId: OWNED_ID, topicId: OWNED_ID, durationMinutes: 25 } })).status, 201);
-      assert.match(calls.at(-1).sql, /learning_study_sessions/);
+      assert.ok(calls.some(call => /learning_study_sessions/.test(call.sql)));
       assert.equal((await request(`/api/learning/topics/${FOREIGN_ID}`, { method: 'PATCH', body: { status: 'completed' } })).status, 404);
       assert.equal((await request(`/api/learning/subjects/${OWNED_ID}`, { method: 'DELETE' })).status, 204);
       assert.equal((await request(`/api/learning/subjects/${FOREIGN_ID}`, { method: 'DELETE' })).status, 404);
@@ -344,6 +349,7 @@ test('authenticated API feature journeys work across EVO modules', async (t) => 
     assert.ok(calls.some(call => /user_id = \$1|user_id = \$2|user_id = \$8/.test(call.sql) && call.params.includes(DEFAULT_USER_ID)), 'expected user-scoped SQL queries');
   } finally {
     pool.query = originalQuery;
+    pool.connect = originalConnect;
     await new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
   }
 });

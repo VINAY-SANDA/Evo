@@ -13,5 +13,9 @@ services:
         value: "*"
       - key: DATABASE_URL
         sync: false
+      - key: EVO_MASTER_PASSCODE
+        sync: false
+      - key: EVO_AUTH_SECRET
+        generateValue: true
       - key: EVO_MCP_TOKEN
         generateValue: true

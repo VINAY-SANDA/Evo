@@ -64,9 +64,8 @@ export default function Header({ onToggleSidebar }: HeaderProps) {
       </div>
 
       <div className="header-right">
-        <button className="header-search" onClick={() => {}}>
-          🔍 <span>Search...</span>
-          <kbd>⌘K</kbd>
+        <button className="header-assistant-btn" onClick={() => navigate('/ai')}>
+          Plan with EVO
         </button>
 
         <button
@@ -76,14 +75,6 @@ export default function Header({ onToggleSidebar }: HeaderProps) {
         >
           🔔
           {unreadCount > 0 && <span className="badge" />}
-        </button>
-
-        <button
-          className="header-icon-btn"
-          onClick={() => navigate('/ai')}
-          aria-label="AI Assistant"
-        >
-          ✨
         </button>
 
         <button

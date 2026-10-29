@@ -45,10 +45,10 @@ export default function LoginPage() {
         {/* Brand Header */}
         <div className="auth-header">
           <div className="auth-emblem">
-            <span className="auth-emblem-text">E</span>
+            <img className="auth-emblem-image" src="/brand/evo-mark.png" alt="EVO" />
           </div>
           <h1 className="auth-title">EVO</h1>
-          <p className="auth-subtitle">Personal Intelligence Operating System</p>
+          <p className="auth-subtitle">A calm place to plan what matters.</p>
         </div>
 
         {/* Error Alert */}
@@ -142,7 +142,7 @@ export default function LoginPage() {
                 <span>Authenticating...</span>
               </span>
             ) : (
-              <span>Sign In to EVO</span>
+            <span>Open EVO</span>
             )}
           </button>
         </form>
@@ -154,7 +154,7 @@ export default function LoginPage() {
               <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
               <path d="M7 11V7a5 5 0 0 1 10 0v4" />
             </svg>
-            <span>Authorized Personal Intelligence Environment</span>
+            <span>Private personal workspace</span>
           </div>
         </div>
       </div>

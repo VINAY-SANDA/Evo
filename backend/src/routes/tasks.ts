@@ -36,7 +36,15 @@ router.get('/', async (req: Request, res: Response) => {
       params.push(category);
     }
 
-    sql += ' ORDER BY due_date ASC, priority DESC, created_at DESC';
+    sql += ` ORDER BY due_date ASC,
+      CASE priority
+        WHEN 'urgent' THEN 1
+        WHEN 'high' THEN 2
+        WHEN 'medium' THEN 3
+        WHEN 'low' THEN 4
+        ELSE 5
+      END,
+      created_at DESC`;
 
     const result = await query(sql, params);
     res.json({ tasks: result.rows, total: result.rows.length });
@@ -59,7 +67,13 @@ router.get('/today', async (_req: Request, res: Response) => {
              created_at as "createdAt", updated_at as "updatedAt"
       FROM tasks
       WHERE user_id = $1 AND due_date = CURRENT_DATE
-      ORDER BY priority DESC, created_at DESC
+      ORDER BY CASE priority
+        WHEN 'urgent' THEN 1
+        WHEN 'high' THEN 2
+        WHEN 'medium' THEN 3
+        WHEN 'low' THEN 4
+        ELSE 5
+      END, created_at DESC
     `;
     const result = await query(sql, [DEFAULT_USER_ID]);
     res.json({ tasks: result.rows, total: result.rows.length });
