@@ -36,10 +36,10 @@
 /* Progress Hero Card */
 .progress-hero-card {
   padding: var(--space-6);
-  background: linear-gradient(180deg, rgba(28, 29, 35, 0.85) 0%, rgba(20, 21, 25, 0.85) 100%);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--evo-bg-card);
+  border: 1px solid var(--evo-border-subtle);
   border-radius: var(--radius-2xl);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4), 0 1px 0 rgba(255, 255, 255, 0.05) inset;
+  box-shadow: var(--evo-shadow-md);
 }
 
 .progress-hero-main {

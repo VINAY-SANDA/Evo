@@ -56,14 +56,14 @@ export default function ReviewsPage() {
   };
 
   const handleAddDirectiveToSchedule = async (directive: string) => {
-    await createTask({
+    const task = await createTask({
       title: directive,
       priority: 'high',
       category: 'Strategic Directive',
       dueDate: new Date().toISOString().split('T')[0],
       dueTime: '11:00',
     });
-    showToast(`✓ "${directive}" added to your Tasks schedule`);
+    showToast(task ? `“${directive}” added to your Tasks schedule.` : 'Could not add this priority as a task. Please try again.');
   };
 
   const handleSaveReflection = async (e: React.FormEvent) => {
@@ -75,12 +75,13 @@ export default function ReviewsPage() {
       whatWentWell: updatedWins,
       whatWentWrong: updatedGaps,
     };
-    setDailyReview(updated);
+    const saved = await saveDailyReview(updated);
+    if (!saved) { showToast('Could not save your reflection. Your text is still here; please try again.'); return; }
+    setDailyReview(saved);
     setWinInput('');
     setGapInput('');
     setShowReflectionModal(false);
-    showToast('✓ Daily reflection saved to database');
-    await saveDailyReview(updated);
+    showToast('Daily reflection saved.');
   };
 
   const generateWeeklyPlan = async () => {

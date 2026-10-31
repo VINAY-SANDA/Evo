@@ -115,6 +115,7 @@ export interface Reminder {
   type: ReminderType;
   time: string;
   daysOfWeek?: number[];
+  scheduledDate?: string | null;
   active: boolean;
   goalId?: string;
   taskId?: string;
@@ -181,6 +182,25 @@ export interface StudySession {
   studiedAt: string;
   subjectName?: string;
   topicName?: string;
+}
+
+export interface DiaryEntry {
+  id: string;
+  title: string;
+  body: string;
+  date: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MovieReview {
+  id: string;
+  title: string;
+  year: number | null;
+  rating: number;
+  review: string;
+  watchedAt: string;
+  createdAt: string;
 }
 
 // ── Learning ──

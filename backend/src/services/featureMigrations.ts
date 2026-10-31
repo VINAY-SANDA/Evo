@@ -52,5 +52,28 @@ export async function ensureFeatureTables(): Promise<void> {
       note TEXT,
       studied_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
+
+    CREATE TABLE IF NOT EXISTS diary_entries (
+      id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+      user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      title VARCHAR(160) NOT NULL,
+      body TEXT NOT NULL DEFAULT '',
+      entry_date DATE NOT NULL DEFAULT CURRENT_DATE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS movie_reviews (
+      id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+      user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      title VARCHAR(200) NOT NULL,
+      release_year INT,
+      rating INT NOT NULL CHECK (rating BETWEEN 1 AND 5),
+      review TEXT NOT NULL DEFAULT '',
+      watched_at DATE NOT NULL DEFAULT CURRENT_DATE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
+    ALTER TABLE reminders ADD COLUMN IF NOT EXISTS scheduled_date DATE;
   `);
 }

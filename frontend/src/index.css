@@ -164,6 +164,29 @@ body {
   overflow-x: hidden;
 }
 
+.page-loading {
+  min-height: 40vh;
+  display: grid;
+  place-items: center;
+  color: var(--evo-text-secondary);
+  background: var(--evo-bg-deep);
+}
+
+.page-error {
+  min-height: 60vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+  padding: var(--space-6);
+  text-align: center;
+  color: var(--evo-text-primary);
+  background: var(--evo-bg-deep);
+}
+
+.page-error p { color: var(--evo-text-secondary); }
+
 #root {
   min-height: 100vh;
 }

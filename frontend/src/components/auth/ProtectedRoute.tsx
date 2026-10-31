@@ -13,13 +13,13 @@ export const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ childr
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        background: 'var(--evo-bg-primary)',
+        background: 'var(--evo-bg-deep)',
         color: 'var(--evo-text-secondary)',
         fontFamily: 'var(--font-sans)',
       }}>
         <div style={{ textAlign: 'center' }}>
           <div style={{ fontSize: '2rem', marginBottom: '1rem', animation: 'spin 2s linear infinite' }}>⚡</div>
-          <p>Verifying biometric security credential...</p>
+          <p>Loading your workspace…</p>
         </div>
       </div>
     );

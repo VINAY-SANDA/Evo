@@ -97,3 +97,9 @@
   padding-top: var(--space-2);
   border-top: 1px dashed var(--evo-border-subtle);
 }
+.reminder-header-actions { display: flex; align-items: center; gap: var(--space-3); }
+.reminder-delivery-note { margin-top: calc(-1 * var(--space-4)); color: var(--evo-text-secondary); font-size: var(--text-sm); }
+.reminder-days-field { border: 0; padding: 0; }
+.reminder-days-list { display: flex; flex-wrap: wrap; gap: var(--space-3); }
+.reminder-days-list label { display: inline-flex; align-items: center; gap: var(--space-1); color: var(--evo-text-secondary); }
+.reminder-actions { display: flex; align-items: center; gap: var(--space-2); margin-top: var(--space-3); }

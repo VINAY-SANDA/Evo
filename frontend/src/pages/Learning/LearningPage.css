@@ -306,7 +306,7 @@
   filter: brightness(1.15);
   transform: scale(1.02);
 }
-.study-focus-card { display: flex; justify-content: space-between; gap: var(--space-6); align-items: center; margin: var(--space-5) 0; background: linear-gradient(120deg, var(--evo-surface) 55%, color-mix(in srgb, var(--evo-primary) 10%, var(--evo-surface))); }
+.study-focus-card { display: flex; justify-content: space-between; gap: var(--space-6); align-items: center; margin: var(--space-5) 0; background: var(--evo-bg-card); }
 .study-focus-card h2 { margin: var(--space-1) 0; }
 .study-focus-card p { margin: 0; color: var(--evo-text-secondary); max-width: 600px; }
 .study-focus-eyebrow { font-size: var(--text-xs); letter-spacing: .12em; color: var(--evo-primary); font-weight: 700; }
@@ -317,10 +317,10 @@
 .learning-error-state { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); color: var(--evo-danger); padding: var(--space-4); }
 .learning-review-queue { display: grid; gap: var(--space-4); margin-bottom: var(--space-5); border-color: color-mix(in srgb, var(--evo-primary) 35%, var(--evo-border)); }
 .learning-review-list { display: grid; gap: var(--space-2); }
-.learning-review-item { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); padding: var(--space-3); border-radius: var(--radius-md); background: var(--evo-surface-secondary); }
+.learning-review-item { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); padding: var(--space-3); border-radius: var(--radius-md); background: var(--evo-bg-elevated); }
 .learning-history-card { display: grid; gap: var(--space-3); }
 .learning-history-list { display: grid; gap: var(--space-2); }
-.learning-history-item { display: grid; grid-template-columns: 1fr auto auto; gap: var(--space-3); align-items: center; padding: var(--space-3); border-radius: var(--radius-md); background: var(--evo-surface-secondary); font-size: var(--text-sm); }
+.learning-history-item { display: grid; grid-template-columns: 1fr auto auto; gap: var(--space-3); align-items: center; padding: var(--space-3); border-radius: var(--radius-md); background: var(--evo-bg-elevated); font-size: var(--text-sm); }
 .learning-history-item time { color: var(--evo-text-secondary); font-size: var(--text-xs); }
 .topic-notes { margin: var(--space-1) 0; color: var(--evo-text-secondary); font-size: var(--text-sm); }
 .topic-resources { display: flex; gap: var(--space-3); flex-wrap: wrap; color: var(--evo-text-secondary); font-size: var(--text-xs); }

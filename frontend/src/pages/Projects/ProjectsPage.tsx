@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import type { Project, ProjectMilestone, Priority, Task } from '../../types';
-import { getProjects, createProject, createProjectMilestone, getProjectMilestones, toggleProjectMilestone, getTasks } from '../../services/api';
+import { getProjects, createProject, createProjectMilestone, getProjectMilestones, toggleProjectMilestone, getTasks, updateProject, deleteProject, deleteProjectMilestone } from '../../services/api';
 import './ProjectsPage.css';
 
 export default function ProjectsPage() {
@@ -10,6 +10,7 @@ export default function ProjectsPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [showModal, setShowModal] = useState(false);
   const [showMilestoneModal, setShowMilestoneModal] = useState(false);
+  const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // New Project Form
@@ -66,60 +67,70 @@ export default function ProjectsPage() {
   const projectTasks = currentProject ? tasks.filter(t => t.projectId === currentProject.id) : [];
 
   const toggleMilestone = async (milestoneId: string) => {
-    setMilestones(prev => {
-      const updated = prev.map(m => {
-        if (m.id === milestoneId) {
-          const isDone = m.status === 'completed';
-          return {
-            ...m,
-            status: (isDone ? 'pending' : 'completed') as ProjectMilestone['status'],
-            completedAt: isDone ? undefined : new Date().toISOString().split('T')[0],
-          };
-        }
-        return m;
-      });
-
-      // Recalculate project progress
-      if (currentProject) {
-        const currentMilestones = updated.filter(m => m.projectId === currentProject.id);
-        if (currentMilestones.length > 0) {
-          const doneCount = currentMilestones.filter(m => m.status === 'completed').length;
-          const newProgress = Math.round((doneCount / currentMilestones.length) * 100);
-          setProjects(pList => pList.map(p => p.id === currentProject.id ? { ...p, progress: newProgress } : p));
-        }
-      }
-
-      return updated;
-    });
-
-    await toggleProjectMilestone(milestoneId);
+    const updated = await toggleProjectMilestone(milestoneId);
+    if (!updated) { showToast('Could not update milestone. Please try again.'); return; }
+    setMilestones(prev => prev.map(m => m.id === milestoneId ? { ...m, ...updated } : m));
+    if (currentProject) {
+      const nextMilestones = projectMilestones.map(m => m.id === milestoneId ? { ...m, ...updated } : m);
+      const progress = nextMilestones.length ? Math.round(nextMilestones.filter(m => m.status === 'completed').length * 100 / nextMilestones.length) : 0;
+      setProjects(list => list.map(project => project.id === currentProject.id ? { ...project, progress } : project));
+    }
   };
 
   const handleCreateProject = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name.trim()) return;
 
-    const newProj = await createProject({
+    const projectValues = {
       name: formData.name.trim(),
       description: formData.description.trim(),
       priority: formData.priority,
       deadline: formData.deadline,
       status: 'active',
       progress: 0,
-    });
+    } as const;
+    const newProj = editingProjectId
+      ? await updateProject(editingProjectId, projectValues)
+      : await createProject(projectValues);
 
     if (newProj) {
-      setProjects(prev => [newProj, ...prev]);
+      setProjects(prev => editingProjectId
+        ? prev.map(project => project.id === editingProjectId ? newProj : project)
+        : [newProj, ...prev]);
       setSelectedProjectId(newProj.id);
-      showToast(`✓ Project "${newProj.name}" created`);
+      showToast(editingProjectId ? 'Project updated.' : `Project "${newProj.name}" created`);
+      setShowModal(false);
+      setEditingProjectId(null);
+      setFormData({ name: '', description: '', priority: 'high', deadline: new Date(Date.now() + 60 * 86400000).toISOString().split('T')[0] });
+    } else {
+      showToast('Could not save project. Please try again.');
     }
-    setShowModal(false);
-    setFormData({
-      name: '',
-      description: '',
-      priority: 'high',
-      deadline: new Date(Date.now() + 60 * 86400000).toISOString().split('T')[0],
-    });
+  };
+
+  const editProject = (project: Project) => {
+    setEditingProjectId(project.id);
+    setFormData({ name: project.name, description: project.description || '', priority: project.priority, deadline: project.deadline || '' });
+    setShowModal(true);
+  };
+
+  const removeProject = async (project: Project) => {
+    if (!window.confirm(`Delete “${project.name}” and its milestones?`)) return;
+    if (!await deleteProject(project.id)) { showToast('Could not delete project. Please try again.'); return; }
+    const remaining = projects.filter(item => item.id !== project.id);
+    setProjects(remaining);
+    setMilestones(items => items.filter(item => item.projectId !== project.id));
+    if (selectedProjectId === project.id) setSelectedProjectId(remaining[0]?.id || '');
+    showToast('Project deleted.');
+  };
+
+  const removeMilestone = async (milestone: ProjectMilestone) => {
+    if (!await deleteProjectMilestone(milestone.id)) { showToast('Could not delete milestone. Please try again.'); return; }
+    setMilestones(items => items.filter(item => item.id !== milestone.id));
+    if (currentProject) {
+      const remaining = projectMilestones.filter(item => item.id !== milestone.id);
+      const progress = remaining.length ? Math.round(remaining.filter(item => item.status === 'completed').length * 100 / remaining.length) : 0;
+      setProjects(list => list.map(project => project.id === currentProject.id ? { ...project, progress } : project));
+    }
   };
 
   const handleAddMilestone = async (e: React.FormEvent) => {
@@ -132,10 +143,14 @@ export default function ProjectsPage() {
 
     if (newM) {
       setMilestones(prev => [...prev, newM]);
+      const progress = Math.round(projectMilestones.filter(item => item.status === 'completed').length * 100 / (projectMilestones.length + 1));
+      setProjects(items => items.map(project => project.id === currentProject.id ? { ...project, progress } : project));
       showToast(`✓ Milestone "${newM.title}" added to ${currentProject.name}`);
+      setMilestoneTitle('');
+      setShowMilestoneModal(false);
+    } else {
+      showToast('Could not add milestone. Please try again.');
     }
-    setMilestoneTitle('');
-    setShowMilestoneModal(false);
   };
 
   const createFromTemplate = async (template: typeof projectTemplates[number]) => {
@@ -145,7 +160,10 @@ export default function ProjectsPage() {
     setSelectedProjectId(created.id);
     const createdMilestones = await Promise.all(template.milestones.map((title, index) => createProjectMilestone(created.id, { title, orderIndex: index + 1 })));
     setMilestones(current => [...current, ...createdMilestones.filter((item): item is ProjectMilestone => Boolean(item))]);
-    showToast(`Started ${template.name} with ${createdMilestones.filter(Boolean).length} milestones.`);
+    const completedCount = createdMilestones.filter(Boolean).length;
+    showToast(completedCount === template.milestones.length
+      ? `Started ${template.name} with ${completedCount} milestones.`
+      : `${template.name} started, but only ${completedCount} of ${template.milestones.length} milestones saved. Add the missing milestones manually.`);
   };
 
   return (
@@ -161,7 +179,7 @@ export default function ProjectsPage() {
           <h1 className="page-title">Projects & Execution</h1>
           <p className="page-subtitle">Track milestones, deliverables, and team/individual ventures</p>
         </div>
-        <button className="btn btn-primary" onClick={() => setShowModal(true)}>
+        <button className="btn btn-primary" onClick={() => { setEditingProjectId(null); setFormData({ name: '', description: '', priority: 'high', deadline: new Date(Date.now() + 60 * 86400000).toISOString().split('T')[0] }); setShowModal(true); }}>
           ➕ New Project
         </button>
       </div>
@@ -221,6 +239,8 @@ export default function ProjectsPage() {
             <p className="project-detail-sub">{currentProject.description}</p>
           </div>
           <div className="project-action-buttons">
+            <button className="btn btn-secondary sm" onClick={() => editProject(currentProject)}>Edit project</button>
+            <button className="btn btn-ghost sm" onClick={() => { void removeProject(currentProject); }}>Delete</button>
             <button className="btn btn-secondary sm" onClick={() => setShowMilestoneModal(true)}>
               ➕ Add Milestone
             </button>
@@ -260,6 +280,7 @@ export default function ProjectsPage() {
                           {isDone ? `Completed on ${m.completedAt || 'Recently'}` : 'Pending execution'}
                         </span>
                       </div>
+                      <button className="btn btn-ghost sm" onClick={() => { void removeMilestone(m); }} aria-label={`Delete milestone ${m.title}`}>×</button>
                     </div>
                   );
                 })
@@ -315,7 +336,7 @@ export default function ProjectsPage() {
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
-              <h2 className="modal-title">Create New Project</h2>
+              <h2 className="modal-title">{editingProjectId ? 'Edit Project' : 'Create New Project'}</h2>
               <button className="modal-close" onClick={() => setShowModal(false)}>✕</button>
             </div>
             <form onSubmit={handleCreateProject}>
@@ -368,7 +389,7 @@ export default function ProjectsPage() {
               </div>
               <div className="modal-footer">
                 <button type="button" className="btn btn-secondary" onClick={() => setShowModal(false)}>Cancel</button>
-                <button type="submit" className="btn btn-primary">Create Project</button>
+                <button type="submit" className="btn btn-primary">{editingProjectId ? 'Save changes' : 'Create Project'}</button>
               </div>
             </form>
           </div>

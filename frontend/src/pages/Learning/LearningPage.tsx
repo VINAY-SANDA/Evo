@@ -6,6 +6,7 @@ import {
   deleteLearningSubject,
   deleteLearningTopic,
   getLearningSubjectsWithStatus,
+  getLearningDaysWorked,
   getLearningTopics,
   getLearningTopicsWithStatus,
   getStudySessions,
@@ -51,6 +52,7 @@ export default function LearningPage() {
   const [focusElapsedBeforeRun, setFocusElapsedBeforeRun] = useState(0);
   const [recentStudyMinutes, setRecentStudyMinutes] = useState(0);
   const [studySessions, setStudySessions] = useState<StudySession[]>([]);
+  const [daysWorked, setDaysWorked] = useState(0);
   const [reviewTopics, setReviewTopics] = useState<ReviewTopic[]>([]);
 
   const [newSubjectName, setNewSubjectName] = useState('');
@@ -186,13 +188,13 @@ export default function LearningPage() {
   }, [focusRunning, focusSeconds]);
 
   useEffect(() => {
-    if (!selectedSubjectId) return;
-    getStudySessions(selectedSubjectId).then(sessions => {
+    Promise.all([getStudySessions(), getLearningDaysWorked()]).then(([sessions, days]) => {
       const weekAgo = Date.now() - 7 * 86400000;
       setStudySessions(sessions);
+      if (days !== null) setDaysWorked(days);
       setRecentStudyMinutes(sessions.filter(session => new Date(session.studiedAt).getTime() >= weekAgo).reduce((sum, session) => sum + Number(session.durationMinutes), 0));
     });
-  }, [selectedSubjectId]);
+  }, []);
 
   useEffect(() => {
     let current = true;
@@ -204,6 +206,7 @@ export default function LearningPage() {
   }, [subjects]);
 
   const currentSubject = subjects.find(s => s.id === selectedSubjectId) || subjects[0] || null;
+  const currentSubjectSessions = studySessions.filter(session => session.subjectId === currentSubject?.id);
   const todayDate = localDate();
   const dueReviewTopics = reviewTopics.filter(topic => topic.nextReviewDate && topic.nextReviewDate <= todayDate);
 
@@ -380,6 +383,7 @@ export default function LearningPage() {
   };
 
   const totalTimeHours = Math.round(subjects.reduce((acc, s) => acc + s.totalTimeMinutes, 0) / 60);
+  const completedTopics = subjects.reduce((total, subject) => total + subject.completedTopics, 0);
 
   return (
     <div className="learning-page">
@@ -403,6 +407,14 @@ export default function LearningPage() {
           <div className="quick-stat-badge">
             <span className="quick-stat-icon">📚</span>
             <span><strong>{subjects.length}</strong> Tracks</span>
+          </div>
+          <div className="quick-stat-badge">
+            <span className="quick-stat-icon">✅</span>
+            <span><strong>{completedTopics}</strong> Topics completed</span>
+          </div>
+          <div className="quick-stat-badge">
+            <span className="quick-stat-icon">📅</span>
+            <span><strong>{daysWorked}</strong> Days studied</span>
           </div>
           </div>
           <button className="btn btn-primary" onClick={() => setShowSubjectModal(true)}>
@@ -428,10 +440,10 @@ export default function LearningPage() {
         <div className="learning-review-list">{dueReviewTopics.map(topic => <div className="learning-review-item" key={topic.id}><span>{topic.subjectIcon} <strong>{topic.subjectName}</strong> · {topic.name}</span><button className="btn btn-secondary sm" onClick={() => void finishReview(topic)}>Mark reviewed · next in {topic.reviewIntervalDays || 3}d</button></div>)}</div>
       </section>}
 
-      {currentSubject && studySessions.length > 0 && <section className="card learning-history-card" aria-label="Recent study history">
+      {currentSubject && currentSubjectSessions.length > 0 && <section className="card learning-history-card" aria-label="Recent study history">
         <div><h2 className="card-title">Recent study history</h2><p className="project-template-caption">Time saved to {currentSubject.name}.</p></div>
         <div className="learning-history-list">
-          {studySessions.slice(0, 5).map(session => <div className="learning-history-item" key={session.id}>
+          {currentSubjectSessions.slice(0, 5).map(session => <div className="learning-history-item" key={session.id}>
             <span>{session.topicName || 'Track study'}{session.note ? ` · ${session.note}` : ''}</span>
             <strong>{session.durationMinutes} min</strong>
             <time>{new Date(session.studiedAt).toLocaleDateString('en-IN')}</time>

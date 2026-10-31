@@ -322,6 +322,10 @@ router.get('/stats', async (_req: Request, res: Response) => {
        WHERE s.user_id = $1`,
       [DEFAULT_USER_ID]
     );
+    const studyDaysRes = await query(
+      'SELECT COUNT(DISTINCT studied_at::date) AS count FROM learning_study_sessions WHERE user_id = $1',
+      [DEFAULT_USER_ID]
+    );
 
     const subCount = Number(subjectsRes.rows[0]?.count) || 0;
     const totalMinutes = Number(subjectsRes.rows[0]?.total_time) || 0;
@@ -337,6 +341,7 @@ router.get('/stats', async (_req: Request, res: Response) => {
       completedTopics,
       inProgressTopics,
       subjects: subCount,
+      daysWorked: Number(studyDaysRes.rows[0]?.count) || 0,
     });
   } catch (error) {
     console.error('Error fetching learning stats:', error);

@@ -16,6 +16,7 @@ import progressRouter from './routes/progress.js';
 import reviewsRouter from './routes/reviews.js';
 import mcpRouter from './routes/mcp.js';
 import authRouter from './routes/auth.js';
+import personalLibraryRouter from './routes/personalLibrary.js';
 import { testConnection, query } from './db/connection.js';
 import { DEFAULT_USER_ID, ensureDefaultUser } from './db/userHelper.js';
 import { authenticateApiRequest, authenticateRequest } from './middleware/auth.js';
@@ -104,6 +105,7 @@ app.use('/api/reminders', remindersRouter);
 app.use('/api/notifications', notificationsRouter);
 app.use('/api/progress', progressRouter);
 app.use('/api/reviews', reviewsRouter);
+app.use('/api/library', personalLibraryRouter);
 
 // ── MCP Server Endpoints (for Google Gemini & Remote AI Clients) ──
 app.use(createEvoMcpOAuthRouter());

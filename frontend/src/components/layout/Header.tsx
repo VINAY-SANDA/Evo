@@ -26,6 +26,8 @@ function getPageTitle(pathname: string): string {
     '/progress': 'Progress',
     '/reminders': 'Reminders',
     '/reviews': 'Reviews',
+    '/diary': 'Diary',
+    '/movies': 'Movies',
     '/ai': 'EVO AI',
     '/notifications': 'Notifications',
     '/settings': 'Settings',

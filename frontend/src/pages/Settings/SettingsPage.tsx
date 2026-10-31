@@ -189,8 +189,8 @@ export default function SettingsPage() {
             {memories.map(mem => (
               <div key={mem.id} className="memory-card">
                 <div className="memory-badge-row">
-                  <span className={`memory-type-pill ${mem.memoryType}`}>
-                    {mem.memoryType.toUpperCase()}
+                  <span className={`memory-type-pill ${mem.memoryType || 'preference'}`}>
+                    {(mem.memoryType || 'preference').toUpperCase()}
                   </span>
                   <span className="memory-importance">Importance: {mem.importance}/10</span>
                 </div>

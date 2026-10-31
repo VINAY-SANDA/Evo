@@ -21,6 +21,8 @@ import type {
   User,
   Memory,
   AiMessage,
+  DiaryEntry,
+  MovieReview,
 } from '../types';
 import { getAuthToken } from './authStorage';
 
@@ -377,6 +379,11 @@ export async function getLearningSubjectsWithStatus(): Promise<{ subjects: Learn
   return { subjects: remote?.subjects || [], ok: remote !== null };
 }
 
+export async function getLearningDaysWorked(): Promise<number | null> {
+  const result = await apiRequest<{ daysWorked: number }>('/api/learning/stats');
+  return result ? Number(result.daysWorked) || 0 : null;
+}
+
 export async function getLearningTopics(subjectId?: string): Promise<LearningTopic[]> {
   if (!subjectId) return [];
   const url = `/api/learning/subjects/${subjectId}/topics`;
@@ -446,6 +453,14 @@ export async function createProject(project: Partial<Project>): Promise<Project 
   });
 }
 
+export async function updateProject(id: string, project: Partial<Project>): Promise<Project | null> {
+  return apiRequest<Project>(`/api/projects/${id}`, { method: 'PATCH', body: JSON.stringify(project) });
+}
+
+export async function deleteProject(id: string): Promise<boolean> {
+  return apiDelete(`/api/projects/${id}`);
+}
+
 export async function createProjectMilestone(projectId: string, milestone: Partial<ProjectMilestone>): Promise<ProjectMilestone | null> {
   return await apiRequest<ProjectMilestone>(`/api/projects/${projectId}/milestones`, {
     method: 'POST',
@@ -464,6 +479,10 @@ export async function toggleProjectMilestone(id: string): Promise<ProjectMilesto
   });
 }
 
+export async function deleteProjectMilestone(id: string): Promise<boolean> {
+  return apiDelete(`/api/projects/milestones/${id}`);
+}
+
 // ── Reminders ──
 export async function getReminders(): Promise<Reminder[]> {
   const remote = await apiRequest<{ reminders: Reminder[] }>('/api/reminders');
@@ -475,6 +494,14 @@ export async function createReminder(reminder: Partial<Reminder>): Promise<Remin
     method: 'POST',
     body: JSON.stringify(reminder),
   });
+}
+
+export async function updateReminder(id: string, reminder: Partial<Reminder>): Promise<Reminder | null> {
+  return apiRequest<Reminder>(`/api/reminders/${id}`, { method: 'PATCH', body: JSON.stringify(reminder) });
+}
+
+export async function deleteReminder(id: string): Promise<boolean> {
+  return apiDelete(`/api/reminders/${id}`);
 }
 
 // ── Notifications ──
@@ -513,6 +540,32 @@ export async function saveDailyReview(review: Partial<DailyReview>): Promise<Dai
 
 export async function saveWeeklyReview(review: Partial<WeeklyReview>): Promise<WeeklyReview | null> {
   return apiRequest<WeeklyReview>('/api/reviews/weekly', { method: 'POST', body: JSON.stringify(review) });
+}
+
+export async function getDiaryEntries(): Promise<DiaryEntry[] | null> {
+  const result = await apiRequest<{ entries: DiaryEntry[] }>('/api/library/diary');
+  return result?.entries ?? null;
+}
+
+export async function createDiaryEntry(entry: Pick<DiaryEntry, 'title' | 'body' | 'date'>): Promise<DiaryEntry | null> {
+  return apiRequest<DiaryEntry>('/api/library/diary', { method: 'POST', body: JSON.stringify(entry) });
+}
+
+export async function deleteDiaryEntry(id: string): Promise<boolean> {
+  return apiDelete(`/api/library/diary/${id}`);
+}
+
+export async function getMovieReviews(): Promise<MovieReview[] | null> {
+  const result = await apiRequest<{ entries: MovieReview[] }>('/api/library/movies');
+  return result?.entries ?? null;
+}
+
+export async function createMovieReview(entry: Pick<MovieReview, 'title' | 'year' | 'rating' | 'review' | 'watchedAt'>): Promise<MovieReview | null> {
+  return apiRequest<MovieReview>('/api/library/movies', { method: 'POST', body: JSON.stringify(entry) });
+}
+
+export async function deleteMovieReview(id: string): Promise<boolean> {
+  return apiDelete(`/api/library/movies/${id}`);
 }
 
 // ── AI Conversation ──
@@ -574,13 +627,18 @@ export async function updateUserProfile(profile: Partial<User>): Promise<User> {
 }
 
 export async function getMemories(): Promise<Memory[]> {
-  const remote = await apiRequest<{ memories: Memory[] }>('/api/memories');
-  return remote?.memories || [];
+  const remote = await apiRequest<{ memories: Array<Memory & { type?: string }> }>('/api/memories');
+  return (remote?.memories || []).map(memory => ({
+    ...memory,
+    memoryType: memory.memoryType || memory.type || 'preference',
+    importance: Number(memory.importance) || 7,
+  }));
 }
 
 export async function addMemory(text: string, type: string = 'preference', importance: number = 7): Promise<Memory | null> {
-  return await apiRequest<Memory>('/api/memories', {
+  const saved = await apiRequest<Memory & { type?: string }>('/api/memories', {
     method: 'POST',
     body: JSON.stringify({ text, type, importance }),
   });
+  return saved ? { ...saved, memoryType: saved.memoryType || saved.type || type } : null;
 }

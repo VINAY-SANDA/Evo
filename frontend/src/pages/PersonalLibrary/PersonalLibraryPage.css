@@ -1,0 +1,16 @@
+.personal-library-page { display: grid; gap: var(--space-6); }
+.library-compose { padding: var(--space-6); }
+.library-compose form { display: grid; gap: var(--space-4); }
+.library-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); }
+.library-form-grid .form-group { display: grid; gap: var(--space-2); }
+.library-body-field { grid-column: 1 / -1; }
+.library-entry-list { display: grid; gap: var(--space-4); }
+.library-entry { padding: var(--space-5); display: grid; gap: var(--space-3); }
+.library-entry-heading { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); }
+.library-entry-heading h2 { font-size: var(--text-lg); color: var(--evo-text-primary); }
+.library-entry-heading time, .library-year { color: var(--evo-text-secondary); font-size: var(--text-sm); }
+.library-entry-body { white-space: pre-wrap; color: var(--evo-text-secondary); }
+.library-rating { color: var(--evo-accent); letter-spacing: .1em; }
+.library-empty { padding: var(--space-6); color: var(--evo-text-secondary); }
+.library-error { padding: var(--space-4); color: var(--evo-danger); }
+@media (max-width: 640px) { .library-form-grid { grid-template-columns: 1fr; } .library-body-field { grid-column: auto; } .library-entry-heading { align-items: flex-start; flex-direction: column; gap: var(--space-1); } }

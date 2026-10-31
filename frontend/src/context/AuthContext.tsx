@@ -25,14 +25,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const [user, setUser] = useState<User | null>(() => getStoredUser());
 
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isLoading] = useState<boolean>(false);
 
   useEffect(() => {
     const verifySession = async () => {
       const token = getAuthToken();
       if (!token) {
         setIsAuthenticated(false);
-        setIsLoading(false);
         return;
       }
 
@@ -40,23 +39,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
       const apiBase = rawApiUrl ? rawApiUrl.replace(/\/+$/, '') : isLocalhost ? 'http://localhost:5000' : '';
 
+      if (!apiBase) return;
+      const controller = new AbortController();
+      const timeout = window.setTimeout(() => controller.abort(), 5000);
       try {
-        if (!apiBase) throw new Error('API URL is not configured');
         const response = await fetch(`${apiBase}/api/auth/verify`, {
           headers: { Authorization: `Bearer ${token}` },
+          signal: controller.signal,
         });
-        if (!response.ok) throw new Error('Session is invalid or expired');
+        if (response.status === 401 || response.status === 403) {
+          clearAuthSession();
+          setUser(null);
+          setIsAuthenticated(false);
+          return;
+        }
+        if (!response.ok) return;
         const data = await response.json() as { authenticated: boolean; user: User };
-        if (!data.authenticated || !data.user) throw new Error('Session is invalid');
+        if (!data.authenticated || !data.user) return;
         updateStoredUser(data.user);
         setUser(data.user);
         setIsAuthenticated(true);
       } catch {
-        clearAuthSession();
-        setUser(null);
-        setIsAuthenticated(false);
+        // Keep the cached session available during network outages or backend wake-up.
       } finally {
-        setIsLoading(false);
+        window.clearTimeout(timeout);
       }
     };
 

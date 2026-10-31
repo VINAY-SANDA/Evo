@@ -23,6 +23,8 @@ const secondaryNav = [
   { path: '/projects', icon: '◇', label: 'Projects' },
   { path: '/reminders', icon: '◷', label: 'Reminders' },
   { path: '/reviews', icon: '▤', label: 'Reviews' },
+  { path: '/diary', icon: '✎', label: 'Diary' },
+  { path: '/movies', icon: '▣', label: 'Movies' },
 ];
 
 export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
