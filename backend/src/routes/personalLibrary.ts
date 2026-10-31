@@ -33,6 +33,23 @@ router.post('/diary', async (req: Request, res: Response) => {
   }
 });
 
+router.patch('/diary/:id', async (req: Request, res: Response) => {
+  const title = String(req.body.title || '').trim();
+  const body = String(req.body.body || '').trim();
+  const date = String(req.body.date || '');
+  if (!title || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return res.status(400).json({ error: 'A title and valid date are required' });
+  try {
+    const result = await query(`UPDATE diary_entries SET title = $1, body = $2, entry_date = $3::date, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $4 AND user_id = $5 RETURNING id, title, body, to_char(entry_date, 'YYYY-MM-DD') AS date,
+      created_at AS "createdAt", updated_at AS "updatedAt"`, [title, body, date, req.params.id, DEFAULT_USER_ID]);
+    if (!result.rows.length) return res.status(404).json({ error: 'Diary entry not found' });
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error updating diary entry:', error);
+    res.status(500).json({ error: 'Could not update diary entry' });
+  }
+});
+
 router.delete('/diary/:id', async (req: Request, res: Response) => {
   try {
     const result = await query('DELETE FROM diary_entries WHERE id = $1 AND user_id = $2 RETURNING id', [req.params.id, DEFAULT_USER_ID]);
@@ -76,6 +93,27 @@ router.post('/movies', async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Error saving movie review:', error);
     res.status(500).json({ error: 'Could not save movie review' });
+  }
+});
+
+router.patch('/movies/:id', async (req: Request, res: Response) => {
+  const title = String(req.body.title || '').trim();
+  const rating = Number(req.body.rating);
+  const year = req.body.year === '' || req.body.year == null ? null : Number(req.body.year);
+  const watchedAt = String(req.body.watchedAt || '');
+  if (!title || !Number.isInteger(rating) || rating < 1 || rating > 5) return res.status(400).json({ error: 'A title and rating from 1 to 5 are required' });
+  if (year !== null && (!Number.isInteger(year) || year < 1888 || year > 2100)) return res.status(400).json({ error: 'Release year must be between 1888 and 2100' });
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(watchedAt)) return res.status(400).json({ error: 'A valid watch date is required' });
+  try {
+    const result = await query(`UPDATE movie_reviews SET title = $1, release_year = $2, rating = $3, review = $4, watched_at = $5::date
+      WHERE id = $6 AND user_id = $7 RETURNING id, title, release_year AS year, rating, review,
+      to_char(watched_at, 'YYYY-MM-DD') AS "watchedAt", created_at AS "createdAt"`,
+    [title, year, rating, String(req.body.review || '').trim(), watchedAt, req.params.id, DEFAULT_USER_ID]);
+    if (!result.rows.length) return res.status(404).json({ error: 'Movie review not found' });
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error updating movie review:', error);
+    res.status(500).json({ error: 'Could not update movie review' });
   }
 });
 

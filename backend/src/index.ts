@@ -217,6 +217,17 @@ app.post('/api/memories', async (req: Request, res: Response) => {
   }
 });
 
+app.delete('/api/memories/:id', async (req: Request, res: Response) => {
+  try {
+    const result = await query('DELETE FROM memories WHERE id = $1 AND user_id = $2 RETURNING id', [req.params.id, DEFAULT_USER_ID]);
+    if (!result.rowCount) return res.status(404).json({ error: 'Memory not found' });
+    res.json({ ok: true });
+  } catch (error) {
+    console.error('Error deleting memory:', error);
+    res.status(500).json({ error: 'Failed to delete memory' });
+  }
+});
+
 // ── User Profile ──
 app.get('/api/user/profile', async (_req: Request, res: Response) => {
   try {

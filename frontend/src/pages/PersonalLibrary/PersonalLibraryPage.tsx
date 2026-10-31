@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import type { DiaryEntry, MovieReview } from '../../types';
-import { createDiaryEntry, createMovieReview, deleteDiaryEntry, deleteMovieReview, getDiaryEntries, getMovieReviews } from '../../services/api';
+import { createDiaryEntry, createMovieReview, deleteDiaryEntry, deleteMovieReview, getDiaryEntries, getMovieReviews, updateDiaryEntry, updateMovieReview } from '../../services/api';
 import './PersonalLibraryPage.css';
 
 export default function PersonalLibraryPage({ mode }: { mode: 'diary' | 'movies' }) {
@@ -11,21 +11,30 @@ export default function PersonalLibraryPage({ mode }: { mode: 'diary' | 'movies'
   const [body, setBody] = useState('');
   const [year, setYear] = useState('');
   const [rating, setRating] = useState(5);
+  const [entryDate, setEntryDate] = useState(() => localDate());
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadedMode, setLoadedMode] = useState<'diary' | 'movies' | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
+  function localDate(value = new Date()) {
+    return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`;
+  }
+
   useEffect(() => {
     let active = true;
-    setLoading(true);
-    (isDiary ? getDiaryEntries() : getMovieReviews()).then(entries => {
+    (mode === 'diary' ? getDiaryEntries() : getMovieReviews()).then(entries => {
       if (!active) return;
-      if (!entries) setError(`Could not load ${isDiary ? 'diary entries' : 'movie reviews'}. Check your connection and retry.`);
-      else if (isDiary) setDiaryEntries(entries as DiaryEntry[]);
-      else setMovieEntries(entries as MovieReview[]);
-    }).finally(() => { if (active) setLoading(false); });
+      if (!entries) setError(`Could not load ${mode === 'diary' ? 'diary entries' : 'movie reviews'}. Check your connection and retry.`);
+      else {
+        setError('');
+        if (mode === 'diary') setDiaryEntries(entries as DiaryEntry[]);
+        else setMovieEntries(entries as MovieReview[]);
+      }
+    }).finally(() => { if (active) { setLoading(false); setLoadedMode(mode); } });
     return () => { active = false; };
-  }, [isDiary]);
+  }, [mode]);
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -33,23 +42,39 @@ export default function PersonalLibraryPage({ mode }: { mode: 'diary' | 'movies'
     if (!cleanTitle || saving) return;
     setSaving(true);
     setError('');
-    const now = new Date();
-    const date = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
     const saved = isDiary
-      ? await createDiaryEntry({ title: cleanTitle, body: body.trim(), date })
-      : await createMovieReview({ title: cleanTitle, year: year ? Number(year) : null, rating, review: body.trim(), watchedAt: date });
+      ? editingId
+        ? await updateDiaryEntry(editingId, { title: cleanTitle, body: body.trim(), date: entryDate })
+        : await createDiaryEntry({ title: cleanTitle, body: body.trim(), date: entryDate })
+      : editingId
+        ? await updateMovieReview(editingId, { title: cleanTitle, year: year ? Number(year) : null, rating, review: body.trim(), watchedAt: entryDate })
+        : await createMovieReview({ title: cleanTitle, year: year ? Number(year) : null, rating, review: body.trim(), watchedAt: entryDate });
     setSaving(false);
     if (!saved) {
-      setError(`Could not save ${isDiary ? 'diary entry' : 'movie review'}. Your text is still here; try again.`);
+      setError(`Could not ${editingId ? 'update' : 'save'} ${isDiary ? 'diary entry' : 'movie review'}. Your text is still here; try again.`);
       return;
     }
-    if (isDiary) setDiaryEntries(current => [saved as DiaryEntry, ...current]);
-    else setMovieEntries(current => [saved as MovieReview, ...current]);
+    if (isDiary) setDiaryEntries(current => editingId ? current.map(entry => entry.id === editingId ? saved as DiaryEntry : entry).sort((a, b) => b.date.localeCompare(a.date)) : [saved as DiaryEntry, ...current]);
+    else setMovieEntries(current => editingId ? current.map(entry => entry.id === editingId ? saved as MovieReview : entry).sort((a, b) => b.watchedAt.localeCompare(a.watchedAt)) : [saved as MovieReview, ...current]);
     setTitle('');
     setBody('');
     setYear('');
     setRating(5);
+    setEntryDate(localDate());
+    setEditingId(null);
   };
+
+  const editDiaryEntry = (entry: DiaryEntry) => {
+    setEditingId(entry.id); setTitle(entry.title); setBody(entry.body); setEntryDate(entry.date); setError('');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const editMovieReview = (entry: MovieReview) => {
+    setEditingId(entry.id); setTitle(entry.title); setBody(entry.review); setYear(entry.year ? String(entry.year) : ''); setRating(entry.rating); setEntryDate(entry.watchedAt); setError('');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const cancelEdit = () => { setEditingId(null); setTitle(''); setBody(''); setYear(''); setRating(5); setEntryDate(localDate()); setError(''); };
 
   const removeDiaryEntry = async (id: string) => {
     if (await deleteDiaryEntry(id)) setDiaryEntries(items => items.filter(item => item.id !== id));
@@ -72,7 +97,7 @@ export default function PersonalLibraryPage({ mode }: { mode: 'diary' | 'movies'
 
       {error && <div className="card library-error" role="alert">{error}</div>}
       <section className="card library-compose">
-        <h2 className="card-title">{isDiary ? 'Write an entry' : 'Add a movie'}</h2>
+        <h2 className="card-title">{editingId ? (isDiary ? 'Edit diary entry' : 'Edit movie review') : (isDiary ? 'Write an entry' : 'Add a movie')}</h2>
         <form onSubmit={event => { void submit(event); }}>
           <div className="library-form-grid">
             <label className="form-group">
@@ -83,26 +108,29 @@ export default function PersonalLibraryPage({ mode }: { mode: 'diary' | 'movies'
               <label className="form-group"><span className="form-label">Release year</span><input className="form-input" type="number" min="1888" max="2100" value={year} onChange={event => setYear(event.target.value)} placeholder="Optional" /></label>
               <label className="form-group"><span className="form-label">Your rating</span><select className="form-input" value={rating} onChange={event => setRating(Number(event.target.value))}>{[5, 4, 3, 2, 1].map(value => <option value={value} key={value}>{'★'.repeat(value)}{'☆'.repeat(5 - value)} · {value}/5</option>)}</select></label>
             </>}
+            <label className="form-group"><span className="form-label">{isDiary ? 'Entry date' : 'Date watched'}</span><input className="form-input" type="date" value={entryDate} onChange={event => setEntryDate(event.target.value)} required /></label>
             <label className="form-group library-body-field">
               <span className="form-label">{isDiary ? 'Your entry' : 'Your review'}</span>
               <textarea className="form-input" rows={4} value={body} onChange={event => setBody(event.target.value)} placeholder={isDiary ? 'Write freely…' : 'What did you like, dislike, or remember?'} />
             </label>
           </div>
-          <button className="btn btn-primary" type="submit" disabled={saving}>{saving ? 'Saving…' : isDiary ? 'Save entry' : 'Add to my movies'}</button>
+          <div className="library-form-actions"><button className="btn btn-primary" type="submit" disabled={saving}>{saving ? 'Saving…' : editingId ? 'Save changes' : isDiary ? 'Save entry' : 'Add to my movies'}</button>{editingId && <button className="btn btn-secondary" type="button" onClick={cancelEdit}>Cancel edit</button>}</div>
         </form>
       </section>
 
       <section className="library-entry-list" aria-label={isDiary ? 'Diary entries' : 'Movie reviews'}>
-        {loading && <div className="card library-empty" role="status">Loading…</div>}
-        {!loading && !error && (isDiary ? diaryEntries.length === 0 : movieEntries.length === 0) && <div className="card library-empty"><p>{isDiary ? 'Your diary is ready. Add your first entry above.' : 'Your movie journal is empty. Add a movie you watched.'}</p></div>}
-        {isDiary ? diaryEntries.map(entry => <article className="card library-entry" key={entry.id}>
+        {(loading || loadedMode !== mode) && <div className="card library-empty" role="status">Loading…</div>}
+        {!loading && loadedMode === mode && !error && (isDiary ? diaryEntries.length === 0 : movieEntries.length === 0) && <div className="card library-empty"><p>{isDiary ? 'Your diary is ready. Add your first entry above.' : 'Your movie journal is empty. Add a movie you watched.'}</p></div>}
+        {loadedMode === mode && isDiary ? diaryEntries.map(entry => <article className="card library-entry" key={entry.id}>
           <div className="library-entry-heading"><h2>{entry.title}</h2><time dateTime={entry.date}>{new Date(`${entry.date}T12:00:00`).toLocaleDateString()}</time></div>
           {entry.body && <p className="library-entry-body">{entry.body}</p>}
+          <button className="btn btn-secondary sm" onClick={() => editDiaryEntry(entry)}>Edit</button>
           <button className="btn btn-ghost sm" onClick={() => { void removeDiaryEntry(entry.id); }} aria-label={`Delete diary entry ${entry.title}`}>Delete</button>
-        </article>) : movieEntries.map(entry => <article className="card library-entry" key={entry.id}>
+        </article>) : loadedMode === mode && movieEntries.map(entry => <article className="card library-entry" key={entry.id}>
           <div className="library-entry-heading"><h2>{entry.title}{entry.year && <span className="library-year"> ({entry.year})</span>}</h2><time dateTime={entry.watchedAt}>{new Date(`${entry.watchedAt}T12:00:00`).toLocaleDateString()}</time></div>
           <div className="library-rating" aria-label={`${entry.rating} out of 5 stars`}>{'★'.repeat(entry.rating)}{'☆'.repeat(5 - entry.rating)}</div>
           {entry.review && <p className="library-entry-body">{entry.review}</p>}
+          <button className="btn btn-secondary sm" onClick={() => editMovieReview(entry)}>Edit</button>
           <button className="btn btn-ghost sm" onClick={() => { void removeMovieReview(entry.id); }} aria-label={`Delete movie review for ${entry.title}`}>Delete</button>
         </article>)}
       </section>

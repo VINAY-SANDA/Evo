@@ -15,7 +15,7 @@ test('all registered MCP tools call the backend and return results', async () =>
     const path = new URL(String(url)).pathname;
     const method = options.method || 'GET';
     const body = options.body ? JSON.parse(options.body) : {};
-    requests.push({ path, method, body, authorization: options.headers?.Authorization });
+    requests.push({ path, method, body, authorization: options.headers?.Authorization, signal: options.signal });
 
     let result = {};
     if (path.endsWith('/dashboard')) result = { overallScore: 75, todayStats: { totalTasks: 1 } };
@@ -66,11 +66,14 @@ test('all registered MCP tools call the backend and return results', async () =>
       'evo_list_budgets', 'evo_set_budget', 'evo_delete_budget', 'evo_add_savings_contribution',
       'evo_list_savings_contributions', 'evo_log_study_session', 'evo_list_study_sessions',
       'evo_list_projects', 'evo_create_project', 'evo_list_project_milestones', 'evo_add_project_milestone',
-      'evo_toggle_project_milestone', 'evo_list_reminders', 'evo_create_reminder', 'evo_update_reminder',
+      'evo_update_project', 'evo_delete_project', 'evo_toggle_project_milestone', 'evo_delete_project_milestone',
+      'evo_list_reminders', 'evo_create_reminder', 'evo_update_reminder',
       'evo_delete_reminder', 'evo_get_daily_review', 'evo_save_daily_review', 'evo_get_weekly_review',
       'evo_save_weekly_review', 'evo_get_progress_scores', 'evo_list_notifications',
       'evo_mark_notification_read', 'evo_mark_all_notifications_read',
       'evo_delete_notification',
+      'evo_list_diary_entries', 'evo_add_diary_entry', 'evo_delete_diary_entry',
+      'evo_list_movie_reviews', 'evo_add_movie_review', 'evo_delete_movie_review',
       'evo_record_goal_check_in', 'evo_list_goal_check_ins',
     ];
     assert.deepEqual(catalog.tools.map(tool => tool.name).sort(), [...expectedNames].sort());
@@ -121,11 +124,14 @@ test('all registered MCP tools call the backend and return results', async () =>
       ['evo_log_study_session', { subjectId: '11111111-1111-4111-8111-111111111111', durationMinutes: 25 }],
       ['evo_list_study_sessions', {}],
       ['evo_list_projects', {}], ['evo_create_project', { name: 'MCP test project' }],
+      ['evo_update_project', { id: '11111111-1111-4111-8111-111111111111', status: 'paused' }],
+      ['evo_delete_project', { id: '11111111-1111-4111-8111-111111111111' }],
       ['evo_list_project_milestones', { projectId: '11111111-1111-4111-8111-111111111111' }],
       ['evo_add_project_milestone', { projectId: '11111111-1111-4111-8111-111111111111', title: 'First milestone' }],
       ['evo_toggle_project_milestone', { id: '11111111-1111-4111-8111-111111111111' }],
-      ['evo_list_reminders', {}], ['evo_create_reminder', { title: 'MCP reminder', time: '10:00' }],
-      ['evo_update_reminder', { id: '11111111-1111-4111-8111-111111111111', active: false }],
+      ['evo_delete_project_milestone', { id: '11111111-1111-4111-8111-111111111111' }],
+      ['evo_list_reminders', {}], ['evo_create_reminder', { title: 'MCP reminder', type: 'one_time', time: '10:00', scheduledDate: '2026-10-31' }],
+      ['evo_update_reminder', { id: '11111111-1111-4111-8111-111111111111', active: false, type: 'one_time', scheduledDate: '2026-10-31' }],
       ['evo_delete_reminder', { id: '11111111-1111-4111-8111-111111111111' }],
       ['evo_get_daily_review', {}], ['evo_save_daily_review', { completedTasks: 1, totalTasks: 2 }],
       ['evo_get_weekly_review', {}], ['evo_save_weekly_review', { overallScore: 70 }],
@@ -133,6 +139,10 @@ test('all registered MCP tools call the backend and return results', async () =>
       ['evo_mark_notification_read', { id: '11111111-1111-4111-8111-111111111111' }],
       ['evo_mark_all_notifications_read', {}],
       ['evo_delete_notification', { id: '11111111-1111-4111-8111-111111111111' }],
+      ['evo_list_diary_entries', {}], ['evo_add_diary_entry', { title: 'A day', body: 'Notes' }],
+      ['evo_delete_diary_entry', { id: '11111111-1111-4111-8111-111111111111' }],
+      ['evo_list_movie_reviews', {}], ['evo_add_movie_review', { title: 'Film', rating: 4, review: 'Good' }],
+      ['evo_delete_movie_review', { id: '11111111-1111-4111-8111-111111111111' }],
       ['evo_get_memories', {}],
       ['evo_add_memory', { text: 'EVO test memory', type: 'preference', importance: 8 }],
       ['evo_consult_ai_coach', { query: 'What should I focus on?' }],
@@ -146,12 +156,20 @@ test('all registered MCP tools call the backend and return results', async () =>
 
     assert.equal(requests.length, expectedNames.length);
     assert.ok(requests.every(request => request.authorization === 'Bearer test-only-evo-mcp-token'));
+    assert.ok(requests.every(request => request.signal instanceof AbortSignal), 'MCP backend requests should have a timeout signal');
     const createdHabitRequest = requests.find(request => request.path.endsWith('/habits') && request.method === 'POST');
     assert.ok(createdHabitRequest, 'evo_create_habit must POST to /api/habits');
     assert.deepEqual(
       { name: createdHabitRequest.body.name, description: createdHabitRequest.body.description, frequency: createdHabitRequest.body.frequency, scheduleDays: createdHabitRequest.body.scheduleDays, target: createdHabitRequest.body.target, unit: createdHabitRequest.body.unit },
       { name: 'EVO test habit', description: 'MCP creation regression test', frequency: 'custom', scheduleDays: [1, 3, 5], target: 2, unit: 'times' },
     );
+    const oneTimeReminderRequest = requests.find(request => request.path.endsWith('/reminders') && request.method === 'POST');
+    assert.equal(oneTimeReminderRequest.body.type, 'custom');
+    assert.equal(oneTimeReminderRequest.body.scheduledDate, '2026-10-31');
+    const personalLibraryCalls = requests.filter(request => request.path.includes('/library/'));
+    assert.equal(personalLibraryCalls.length, 6);
+    assert.ok(requests.some(request => request.path === '/api/projects/11111111-1111-4111-8111-111111111111' && request.method === 'PATCH'));
+    assert.ok(requests.some(request => request.path === '/api/projects/11111111-1111-4111-8111-111111111111' && request.method === 'DELETE'));
   } finally {
     global.fetch = originalFetch;
     await client.close();

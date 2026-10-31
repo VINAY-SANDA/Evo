@@ -11,7 +11,7 @@ export default function RemindersPage() {
   const [showModal, setShowModal] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | 'unsupported'>(() => 'Notification' in window ? Notification.permission : 'unsupported');
+  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | 'unsupported'>(() => typeof window !== 'undefined' && 'Notification' in window ? Notification.permission : 'unsupported');
 
   const [formData, setFormData] = useState<{
     title: string;
@@ -39,7 +39,7 @@ export default function RemindersPage() {
       const now = new Date();
       const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
       const minute = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-      if (Notification.permission !== 'granted') return;
+      if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
       for (const reminder of reminders) {
         const scheduledToday = reminder.type === 'daily' || (reminder.type === 'weekly' && reminder.daysOfWeek?.includes(now.getDay())) || (reminder.type === 'custom' && reminder.scheduledDate === today);
         if (!reminder.active || !scheduledToday || reminder.time !== minute) continue;
@@ -78,7 +78,7 @@ export default function RemindersPage() {
   };
 
   const enableNotifications = async () => {
-    if (!('Notification' in window)) { showToast('This browser does not support notifications.'); return; }
+    if (typeof window === 'undefined' || !('Notification' in window)) { setNotificationPermission('unsupported'); showToast('This browser does not support notifications.'); return; }
     const permission = await Notification.requestPermission();
     setNotificationPermission(permission);
     showToast(permission === 'granted' ? 'Browser reminders enabled while EVO is open.' : 'Notification permission was not granted.');
@@ -125,13 +125,13 @@ export default function RemindersPage() {
           <p className="page-subtitle">Context-aware triggers, schedule alarms, and AI daily cues</p>
         </div>
         <div className="reminder-header-actions">
-        {notificationPermission !== 'granted' && <button className="btn btn-secondary" onClick={() => { void enableNotifications(); }}>Enable browser alerts</button>}
+        {notificationPermission !== 'granted' && notificationPermission !== 'unsupported' && <button className="btn btn-secondary" onClick={() => { void enableNotifications(); }}>Enable browser alerts</button>}
         <button className="btn btn-primary" onClick={() => { setEditingId(null); setFormData({ title: '', time: '09:00', type: 'daily', goalId: '', daysOfWeek: [], scheduledDate: '' }); setShowModal(true); }}>
           ➕ New Reminder
         </button>
         </div>
       </div>
-      <p className="reminder-delivery-note">Browser alerts run while EVO is open. Your schedule is saved to your account.</p>
+      <p className="reminder-delivery-note">{notificationPermission === 'unsupported' ? 'This browser does not support alerts. Reminders are saved, but need EVO open in a supported browser to notify you.' : 'Browser alerts run while EVO is open. Your schedule is saved to your account.'}</p>
 
       <div className="reminders-grid">
         {reminders.map(rem => {

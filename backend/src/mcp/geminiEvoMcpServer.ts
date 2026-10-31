@@ -11,6 +11,7 @@ dotenv.config();
 
 export function createEvoMcpServer(customApiUrl?: string): Server {
   const EVO_API_URL = (customApiUrl || process.env.EVO_API_URL || `http://localhost:${process.env.PORT || 5000}/api`).replace(/\/+$/, '');
+  const requestTimeoutMs = 15000;
 
   async function fetchEvo<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     const serviceToken = process.env.EVO_MCP_TOKEN;
@@ -18,9 +19,12 @@ export function createEvoMcpServer(customApiUrl?: string): Server {
       throw new Error('EVO_MCP_TOKEN is not configured for the MCP server.');
     }
 
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), requestTimeoutMs);
     try {
       const res = await fetch(`${EVO_API_URL}${endpoint}`, {
         ...options,
+        signal: options.signal ?? controller.signal,
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${serviceToken}`,
@@ -41,7 +45,12 @@ export function createEvoMcpServer(customApiUrl?: string): Server {
       return await res.json() as T;
     } catch (error) {
       if (error instanceof Error && error.message.startsWith('EVO request failed')) throw error;
+      if (controller.signal.aborted) {
+        throw new Error(`EVO backend did not respond within ${requestTimeoutMs / 1000} seconds; the operation result could not be confirmed. Check EVO before retrying.`);
+      }
       throw new Error('EVO backend is unreachable; the operation result could not be confirmed. Check EVO before retrying.');
+    } finally {
+      clearTimeout(timeout);
     }
   }
 
@@ -334,18 +343,27 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       { name: 'evo_list_study_sessions', description: 'List recent study sessions, optionally for one learning track.', inputSchema: { type: 'object', properties: { subjectId: { type: 'string' } } } },
       { name: 'evo_list_projects', description: 'List projects and their current status.', inputSchema: { type: 'object', properties: {} } },
       { name: 'evo_create_project', description: 'Create a project.', inputSchema: { type: 'object', properties: { name: { type: 'string' }, description: { type: 'string' }, priority: { type: 'string', enum: ['urgent', 'high', 'medium', 'low'] }, deadline: { type: 'string' } }, required: ['name'] } },
+      { name: 'evo_update_project', description: 'Update the name, description, priority, status, or deadline of a project.', inputSchema: { type: 'object', properties: { id: { type: 'string' }, name: { type: 'string' }, description: { type: 'string' }, priority: { type: 'string', enum: ['urgent', 'high', 'medium', 'low'] }, status: { type: 'string', enum: ['active', 'completed', 'paused', 'cancelled'] }, deadline: { type: 'string', description: 'YYYY-MM-DD' } }, required: ['id'] } },
+      { name: 'evo_delete_project', description: 'Permanently delete a project and its milestones. Only call after the user explicitly confirms deletion.', inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] } },
       { name: 'evo_list_project_milestones', description: 'List milestones for a project.', inputSchema: { type: 'object', properties: { projectId: { type: 'string' } }, required: ['projectId'] } },
       { name: 'evo_add_project_milestone', description: 'Add a milestone to a project.', inputSchema: { type: 'object', properties: { projectId: { type: 'string' }, title: { type: 'string' }, orderIndex: { type: 'number' } }, required: ['projectId', 'title'] } },
       { name: 'evo_toggle_project_milestone', description: 'Toggle a project milestone between pending and completed.', inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] } },
+      { name: 'evo_delete_project_milestone', description: 'Delete a project milestone. Only call after the user explicitly confirms deletion.', inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] } },
       { name: 'evo_list_reminders', description: 'List reminders.', inputSchema: { type: 'object', properties: {} } },
-      { name: 'evo_create_reminder', description: 'Create a reminder.', inputSchema: { type: 'object', properties: { title: { type: 'string' }, type: { type: 'string', enum: ['daily', 'weekly', 'custom', 'one_time'] }, time: { type: 'string', description: '24-hour HH:MM time' }, daysOfWeek: { type: 'array', items: { type: 'number' } }, goalId: { type: 'string' } }, required: ['title', 'time'] } },
-      { name: 'evo_update_reminder', description: 'Update a reminder, including enabling or disabling it.', inputSchema: { type: 'object', properties: { id: { type: 'string' }, title: { type: 'string' }, type: { type: 'string' }, time: { type: 'string' }, daysOfWeek: { type: 'array', items: { type: 'number' } }, active: { type: 'boolean' }, goalId: { type: 'string' } }, required: ['id'] } },
+      { name: 'evo_create_reminder', description: 'Create a recurring or one-time reminder. For weekly reminders include daysOfWeek (0 Sunday through 6 Saturday); for one-time reminders include scheduledDate.', inputSchema: { type: 'object', properties: { title: { type: 'string' }, type: { type: 'string', enum: ['daily', 'weekly', 'one_time'] }, time: { type: 'string', description: '24-hour HH:MM time' }, daysOfWeek: { type: 'array', items: { type: 'integer', minimum: 0, maximum: 6 } }, scheduledDate: { type: 'string', description: 'Required for one-time reminder, YYYY-MM-DD' }, goalId: { type: 'string' } }, required: ['title', 'time'] } },
+      { name: 'evo_update_reminder', description: 'Update a reminder, including enabling or disabling it.', inputSchema: { type: 'object', properties: { id: { type: 'string' }, title: { type: 'string' }, type: { type: 'string', enum: ['daily', 'weekly', 'one_time'] }, time: { type: 'string' }, daysOfWeek: { type: 'array', items: { type: 'integer', minimum: 0, maximum: 6 } }, scheduledDate: { type: 'string', description: 'YYYY-MM-DD for one-time reminders' }, active: { type: 'boolean' }, goalId: { type: 'string' } }, required: ['id'] } },
       { name: 'evo_delete_reminder', description: 'Delete a reminder. Only call after the user explicitly confirms this deletion.', inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] } },
       { name: 'evo_get_daily_review', description: 'Get recent daily review history.', inputSchema: { type: 'object', properties: {} } },
       { name: 'evo_save_daily_review', description: 'Save or update a daily review.', inputSchema: { type: 'object', properties: { date: { type: 'string' }, completedTasks: { type: 'number' }, totalTasks: { type: 'number' }, completedHabits: { type: 'number' }, totalHabits: { type: 'number' }, whatWentWell: { type: 'array', items: { type: 'string' } }, whatWentWrong: { type: 'array', items: { type: 'string' } }, suggestions: { type: 'array', items: { type: 'string' } }, aiSummary: { type: 'string' } } } },
       { name: 'evo_get_weekly_review', description: 'Get recent weekly review history.', inputSchema: { type: 'object', properties: {} } },
       { name: 'evo_save_weekly_review', description: 'Save a weekly review and next-week priorities.', inputSchema: { type: 'object', properties: { weekStart: { type: 'string' }, weekEnd: { type: 'string' }, overallScore: { type: 'number' }, biggestAchievement: { type: 'string' }, biggestProblem: { type: 'string' }, nextWeekPriorities: { type: 'array', items: { type: 'string' } }, categoryScores: { type: 'array', items: { type: 'object' } } } } },
       { name: 'evo_get_progress_scores', description: 'Get progress scores by life area.', inputSchema: { type: 'object', properties: {} } },
+      { name: 'evo_list_diary_entries', description: 'List personal diary entries, newest first.', inputSchema: { type: 'object', properties: {} } },
+      { name: 'evo_add_diary_entry', description: 'Save a personal diary entry.', inputSchema: { type: 'object', properties: { title: { type: 'string' }, body: { type: 'string' }, date: { type: 'string', description: 'YYYY-MM-DD; defaults to today' } }, required: ['title'] } },
+      { name: 'evo_delete_diary_entry', description: 'Permanently delete a diary entry. Only call after the user explicitly confirms deletion.', inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] } },
+      { name: 'evo_list_movie_reviews', description: 'List watched movies and personal ratings/reviews.', inputSchema: { type: 'object', properties: {} } },
+      { name: 'evo_add_movie_review', description: 'Save a movie title, optional release year, 1–5 rating, review, and watch date.', inputSchema: { type: 'object', properties: { title: { type: 'string' }, year: { type: 'integer', minimum: 1888, maximum: 2100 }, rating: { type: 'integer', minimum: 1, maximum: 5 }, review: { type: 'string' }, watchedAt: { type: 'string', description: 'YYYY-MM-DD; defaults to today' } }, required: ['title', 'rating'] } },
+      { name: 'evo_delete_movie_review', description: 'Permanently delete a movie review. Only call after the user explicitly confirms deletion.', inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] } },
       { name: 'evo_list_notifications', description: 'List notifications.', inputSchema: { type: 'object', properties: {} } },
       { name: 'evo_mark_notification_read', description: 'Mark a notification as read.', inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] } },
       { name: 'evo_mark_all_notifications_read', description: 'Mark all notifications as read.', inputSchema: { type: 'object', properties: {} } },
@@ -434,7 +452,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case 'evo_toggle_task': {
-        const id = String(args.id);
+        const id = encodeURIComponent(String(args.id));
         const updated = await fetchEvo<any>(`/tasks/${id}/toggle`, { method: 'POST' });
         return {
           content: [{ type: 'text', text: `Task "${updated.title}" is now ${updated.status}.` }],
@@ -522,6 +540,15 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const created = await fetchEvo<any>('/projects', { method: 'POST', body: JSON.stringify(args) });
         return { content: [{ type: 'text', text: `Created project "${created.name}" (ID: ${created.id}).` }] };
       }
+      case 'evo_update_project': {
+        const { id, ...body } = args;
+        const updated = await fetchEvo<any>(`/projects/${encodeURIComponent(String(id))}`, { method: 'PATCH', body: JSON.stringify(body) });
+        return { content: [{ type: 'text', text: `Updated project "${updated.name}" (${updated.status}).` }] };
+      }
+      case 'evo_delete_project': {
+        await fetchEvo<void>(`/projects/${encodeURIComponent(String(args.id))}`, { method: 'DELETE' });
+        return { content: [{ type: 'text', text: `Deleted project ${args.id} and its milestones.` }] };
+      }
       case 'evo_list_project_milestones':
         return { content: [{ type: 'text', text: JSON.stringify(await fetchEvo<any>(`/projects/${encodeURIComponent(String(args.projectId))}/milestones`), null, 2) }] };
       case 'evo_add_project_milestone': {
@@ -533,15 +560,21 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const updated = await fetchEvo<any>(`/projects/milestones/${encodeURIComponent(String(args.id))}/toggle`, { method: 'PATCH' });
         return { content: [{ type: 'text', text: `Milestone "${updated.title}" is ${updated.status}.` }] };
       }
+      case 'evo_delete_project_milestone': {
+        await fetchEvo<void>(`/projects/milestones/${encodeURIComponent(String(args.id))}`, { method: 'DELETE' });
+        return { content: [{ type: 'text', text: `Deleted project milestone ${args.id}.` }] };
+      }
       case 'evo_list_reminders':
         return { content: [{ type: 'text', text: JSON.stringify(await fetchEvo<any>('/reminders'), null, 2) }] };
       case 'evo_create_reminder': {
-        const created = await fetchEvo<any>('/reminders', { method: 'POST', body: JSON.stringify(args) });
+        const body = { ...args, type: args.type === 'one_time' ? 'custom' : args.type || 'daily' };
+        const created = await fetchEvo<any>('/reminders', { method: 'POST', body: JSON.stringify(body) });
         return { content: [{ type: 'text', text: `Created reminder "${created.title}" at ${created.time}.` }] };
       }
       case 'evo_update_reminder': {
         const { id, ...body } = args;
-        const updated = await fetchEvo<any>(`/reminders/${encodeURIComponent(String(id))}`, { method: 'PATCH', body: JSON.stringify(body) });
+        const reminderUpdate = { ...body, ...(body.type ? { type: body.type === 'one_time' ? 'custom' : body.type } : {}) };
+        const updated = await fetchEvo<any>(`/reminders/${encodeURIComponent(String(id))}`, { method: 'PATCH', body: JSON.stringify(reminderUpdate) });
         return { content: [{ type: 'text', text: `Updated reminder "${updated.title}".` }] };
       }
       case 'evo_delete_reminder': {
@@ -562,6 +595,26 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
       case 'evo_get_progress_scores':
         return { content: [{ type: 'text', text: JSON.stringify(await fetchEvo<any>('/progress/scores'), null, 2) }] };
+      case 'evo_list_diary_entries':
+        return { content: [{ type: 'text', text: JSON.stringify(await fetchEvo<any>('/library/diary'), null, 2) }] };
+      case 'evo_add_diary_entry': {
+        const created = await fetchEvo<any>('/library/diary', { method: 'POST', body: JSON.stringify(args) });
+        return { content: [{ type: 'text', text: `Saved diary entry "${created.title}" (${created.date}).` }] };
+      }
+      case 'evo_delete_diary_entry': {
+        await fetchEvo<void>(`/library/diary/${encodeURIComponent(String(args.id))}`, { method: 'DELETE' });
+        return { content: [{ type: 'text', text: `Deleted diary entry ${args.id}.` }] };
+      }
+      case 'evo_list_movie_reviews':
+        return { content: [{ type: 'text', text: JSON.stringify(await fetchEvo<any>('/library/movies'), null, 2) }] };
+      case 'evo_add_movie_review': {
+        const created = await fetchEvo<any>('/library/movies', { method: 'POST', body: JSON.stringify(args) });
+        return { content: [{ type: 'text', text: `Saved ${created.rating}/5 review for "${created.title}".` }] };
+      }
+      case 'evo_delete_movie_review': {
+        await fetchEvo<void>(`/library/movies/${encodeURIComponent(String(args.id))}`, { method: 'DELETE' });
+        return { content: [{ type: 'text', text: `Deleted movie review ${args.id}.` }] };
+      }
       case 'evo_list_notifications':
         return { content: [{ type: 'text', text: JSON.stringify(await fetchEvo<any>('/notifications'), null, 2) }] };
       case 'evo_mark_notification_read': {
@@ -608,7 +661,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case 'evo_toggle_habit': {
-        const id = String(args.id);
+        const id = encodeURIComponent(String(args.id));
         const updated = await fetchEvo<any>(`/habits/${id}/complete`, { method: 'POST' });
         return {
           content: [{ type: 'text', text: `"${updated.name}" is ${updated.completedToday ? 'complete' : 'not complete'} today.` }],

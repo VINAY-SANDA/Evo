@@ -3,8 +3,6 @@
    Personal AI Operating System
    ======================================== */
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap');
-
 /* ── CSS Custom Properties ── */
 :root {
   /* Quiet, editorial workspace palette — colour signals meaning, not decoration. */
@@ -190,6 +188,20 @@ body {
 #root {
   min-height: 100vh;
 }
+
+.api-error-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+  padding: var(--space-4);
+  color: var(--evo-danger-dark);
+  border-color: var(--evo-danger);
+  background: var(--evo-danger-bg);
+}
+.api-error-banner > div { display: flex; gap: var(--space-2); flex-shrink: 0; }
+@media (max-width: 640px) { .api-error-banner { align-items: flex-start; flex-direction: column; } }
 
 a {
   color: var(--evo-primary-light);

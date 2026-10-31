@@ -141,6 +141,10 @@ function isAllowedMcpApiCall(method: string, originalUrl: string): boolean {
     'POST /api/learning/study-sessions',
     'GET /api/memories',
     'POST /api/memories',
+    'GET /api/library/diary',
+    'POST /api/library/diary',
+    'GET /api/library/movies',
+    'POST /api/library/movies',
     'POST /api/ai/chat',
   ]);
 
@@ -157,15 +161,21 @@ function isAllowedMcpApiCall(method: string, originalUrl: string): boolean {
       /^\/api\/finance\/(expenses|income|savings)\/[0-9a-f-]+$/i.test(pathname) ||
       /^\/api\/finance\/budgets\/[0-9a-f-]+$/i.test(pathname) ||
       /^\/api\/learning\/(subjects|topics)\/[0-9a-f-]+$/i.test(pathname)
+      || /^\/api\/projects\/[0-9a-f-]+$/i.test(pathname)
+      || /^\/api\/projects\/milestones\/[0-9a-f-]+$/i.test(pathname)
+      || /^\/api\/library\/(diary|movies)\/[0-9a-f-]+$/i.test(pathname)
+      || /^\/api\/memories\/[0-9a-f-]+$/i.test(pathname)
     )) ||
     (method === 'PATCH' && (
       /^\/api\/habits\/[0-9a-f-]+\/(archive|restore)$/i.test(pathname) ||
-      /^\/api\/learning\/topics\/[0-9a-f-]+$/i.test(pathname)
+      /^\/api\/learning\/topics\/[0-9a-f-]+$/i.test(pathname) ||
+      /^\/api\/library\/(diary|movies)\/[0-9a-f-]+$/i.test(pathname)
     )) ||
     (method === 'PATCH' && (
       /^\/api\/reminders\/[0-9a-f-]+$/i.test(pathname) ||
       /^\/api\/notifications\/(read-all|[0-9a-f-]+\/read)$/i.test(pathname) ||
       /^\/api\/projects\/milestones\/[0-9a-f-]+\/toggle$/i.test(pathname)
+      || /^\/api\/projects\/[0-9a-f-]+$/i.test(pathname)
     )) ||
     (method === 'DELETE' && (
       /^\/api\/reminders\/[0-9a-f-]+$/i.test(pathname) ||
@@ -173,6 +183,7 @@ function isAllowedMcpApiCall(method: string, originalUrl: string): boolean {
     )) ||
     (method === 'GET' && /^\/api\/learning\/subjects\/[0-9a-f-]+\/topics$/i.test(pathname)) ||
     (method === 'GET' && /^\/api\/projects\/[0-9a-f-]+\/milestones$/i.test(pathname)) ||
+    (method === 'DELETE' && /^\/api\/projects\/milestones\/[0-9a-f-]+$/i.test(pathname)) ||
     (method === 'POST' && /^\/api\/projects\/[0-9a-f-]+\/milestones$/i.test(pathname)) ||
     (method === 'POST' && (
       /^\/api\/learning\/subjects\/[0-9a-f-]+\/topics$/i.test(pathname) ||

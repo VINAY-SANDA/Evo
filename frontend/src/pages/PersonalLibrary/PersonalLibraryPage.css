@@ -1,6 +1,7 @@
 .personal-library-page { display: grid; gap: var(--space-6); }
 .library-compose { padding: var(--space-6); }
 .library-compose form { display: grid; gap: var(--space-4); }
+.library-form-actions { display: flex; flex-wrap: wrap; gap: var(--space-3); }
 .library-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); }
 .library-form-grid .form-group { display: grid; gap: var(--space-2); }
 .library-body-field { grid-column: 1 / -1; }

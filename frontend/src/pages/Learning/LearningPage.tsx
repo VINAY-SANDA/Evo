@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import type { LearningSubject, LearningTopic, StudySession } from '../../types';
 import {
   createLearningSubject,
@@ -33,7 +33,23 @@ function focusElapsed(startedAt: number, elapsedBeforeRun: number): number {
   return Math.min(FOCUS_SPRINT_SECONDS, elapsedBeforeRun + Math.floor((Date.now() - startedAt) / 1000));
 }
 
+function readStoredFocusSession(): { topicId: string; subjectId: string; elapsed: number; running: boolean; resumedAt: number } | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const saved = JSON.parse(window.localStorage.getItem(FOCUS_SESSION_KEY) || 'null');
+    if (!saved || typeof saved.topicId !== 'string' || typeof saved.subjectId !== 'string') return null;
+    const elapsed = saved.running && typeof saved.startedAt === 'number'
+      ? focusElapsed(saved.startedAt, Number(saved.elapsedBeforeRun) || 0)
+      : Math.max(0, Number(saved.elapsedBeforeRun) || 0);
+    return { topicId: saved.topicId, subjectId: saved.subjectId, elapsed, running: Boolean(saved.running) && elapsed < FOCUS_SPRINT_SECONDS, resumedAt: Date.now() };
+  } catch {
+    window.localStorage.removeItem(FOCUS_SESSION_KEY);
+    return null;
+  }
+}
+
 export default function LearningPage() {
+  const [restoredFocus] = useState(readStoredFocusSession);
   const [subjects, setSubjects] = useState<LearningSubject[]>([]);
   const [selectedSubjectId, setSelectedSubjectId] = useState<string>('');
   const [topics, setTopics] = useState<LearningTopic[]>([]);
@@ -44,12 +60,12 @@ export default function LearningPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const [focusTopicId, setFocusTopicId] = useState<string | null>(null);
-  const [focusSubjectId, setFocusSubjectId] = useState<string | null>(null);
-  const [focusSeconds, setFocusSeconds] = useState(0);
-  const [focusRunning, setFocusRunning] = useState(false);
-  const [focusStartedAt, setFocusStartedAt] = useState<number | null>(null);
-  const [focusElapsedBeforeRun, setFocusElapsedBeforeRun] = useState(0);
+  const [focusTopicId, setFocusTopicId] = useState<string | null>(restoredFocus?.topicId || null);
+  const [focusSubjectId, setFocusSubjectId] = useState<string | null>(restoredFocus?.subjectId || null);
+  const [focusSeconds, setFocusSeconds] = useState(restoredFocus?.elapsed || 0);
+  const [focusRunning, setFocusRunning] = useState(restoredFocus?.running || false);
+  const [focusStartedAt, setFocusStartedAt] = useState<number | null>(restoredFocus?.running ? restoredFocus.resumedAt : null);
+  const [focusElapsedBeforeRun, setFocusElapsedBeforeRun] = useState(restoredFocus?.elapsed || 0);
   const [recentStudyMinutes, setRecentStudyMinutes] = useState(0);
   const [studySessions, setStudySessions] = useState<StudySession[]>([]);
   const [daysWorked, setDaysWorked] = useState(0);
@@ -68,7 +84,7 @@ export default function LearningPage() {
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  async function refreshSubjects() {
+  const refreshSubjects = useCallback(async () => {
     const { subjects: subjs, ok } = await getLearningSubjectsWithStatus();
     if (!ok) {
       setLoadError('Learning data could not be loaded. Check your connection and try again.');
@@ -80,7 +96,7 @@ export default function LearningPage() {
       ? selected
       : (focusSubjectId && subjs.some(subject => subject.id === focusSubjectId) ? focusSubjectId : subjs[0]?.id || ''));
     return subjs;
-  }
+  }, [focusSubjectId]);
 
   async function refreshTopics(subjectId = selectedSubjectId) {
     if (!subjectId) {
@@ -109,25 +125,6 @@ export default function LearningPage() {
   };
 
   useEffect(() => {
-    try {
-      const saved = JSON.parse(window.localStorage.getItem(FOCUS_SESSION_KEY) || 'null');
-      if (saved && typeof saved.topicId === 'string' && typeof saved.subjectId === 'string') {
-        const elapsed = saved.running && typeof saved.startedAt === 'number'
-          ? focusElapsed(saved.startedAt, Number(saved.elapsedBeforeRun) || 0)
-          : Math.max(0, Number(saved.elapsedBeforeRun) || 0);
-        setFocusTopicId(saved.topicId);
-        setFocusSubjectId(saved.subjectId);
-        setFocusElapsedBeforeRun(elapsed);
-        setFocusSeconds(elapsed);
-        setFocusStartedAt(saved.running && elapsed < FOCUS_SPRINT_SECONDS ? Date.now() : null);
-        setFocusRunning(Boolean(saved.running) && elapsed < FOCUS_SPRINT_SECONDS);
-      }
-    } catch {
-      window.localStorage.removeItem(FOCUS_SESSION_KEY);
-    }
-  }, []);
-
-  useEffect(() => {
     if (!focusTopicId || !focusSubjectId) return;
     window.localStorage.setItem(FOCUS_SESSION_KEY, JSON.stringify({
       topicId: focusTopicId,
@@ -140,15 +137,13 @@ export default function LearningPage() {
 
   useEffect(() => {
     let current = true;
-    setLoading(true);
     refreshSubjects().finally(() => { if (current) setLoading(false); });
     return () => { current = false; };
-  }, []);
+  }, [refreshSubjects]);
 
   useEffect(() => {
     let current = true;
     if (!selectedSubjectId) {
-      setTopics([]);
       return () => { current = false; };
     }
     getLearningTopicsWithStatus(selectedSubjectId).then(({ topics: result, ok }) => {
@@ -164,28 +159,20 @@ export default function LearningPage() {
   }, [selectedSubjectId]);
 
   useEffect(() => {
-    if (focusSubjectId && subjects.some(subject => subject.id === focusSubjectId)) {
-      setSelectedSubjectId(focusSubjectId);
-    }
-  }, [focusSubjectId, subjects]);
-
-  useEffect(() => {
     if (!focusRunning || !focusStartedAt) return;
-    const updateElapsed = () => setFocusSeconds(focusElapsed(focusStartedAt, focusElapsedBeforeRun));
-    updateElapsed();
+    const updateElapsed = () => {
+      const elapsed = focusElapsed(focusStartedAt, focusElapsedBeforeRun);
+      setFocusSeconds(elapsed);
+      if (elapsed >= FOCUS_SPRINT_SECONDS) {
+        setFocusRunning(false);
+        setFocusStartedAt(null);
+        setFocusElapsedBeforeRun(FOCUS_SPRINT_SECONDS);
+        showToast('25-minute focus sprint complete. Save it to your study history.');
+      }
+    };
     const timer = window.setInterval(updateElapsed, 1000);
     return () => window.clearInterval(timer);
   }, [focusRunning, focusStartedAt, focusElapsedBeforeRun]);
-
-  useEffect(() => {
-    if (focusRunning && focusSeconds >= FOCUS_SPRINT_SECONDS) {
-      setFocusRunning(false);
-      setFocusStartedAt(null);
-      setFocusElapsedBeforeRun(FOCUS_SPRINT_SECONDS);
-      setFocusSeconds(FOCUS_SPRINT_SECONDS);
-      showToast('25-minute focus sprint complete. Save it to your study history.');
-    }
-  }, [focusRunning, focusSeconds]);
 
   useEffect(() => {
     Promise.all([getStudySessions(), getLearningDaysWorked()]).then(([sessions, days]) => {
@@ -250,6 +237,8 @@ export default function LearningPage() {
     await Promise.all([refreshSubjects(), refreshTopics(subject.id)]);
     setStudySessions(items => [saved, ...items]);
     setRecentStudyMinutes(value => value + minutes);
+    const updatedDaysWorked = await getLearningDaysWorked();
+    if (updatedDaysWorked !== null) setDaysWorked(updatedDaysWorked);
     clearFocusSession();
     showToast(`${minutes} minutes added to ${topic.name}.`);
   };

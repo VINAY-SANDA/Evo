@@ -55,12 +55,15 @@
 }
 
 .tone-card {
+  display: block;
+  width: 100%;
+  text-align: left;
   padding: var(--space-3) var(--space-4);
   border-radius: var(--radius-lg);
   border: 1px solid var(--evo-border-subtle);
   background: var(--evo-bg-surface);
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: all var(--duration-fast);
 }
 
 .tone-card:hover {
@@ -69,7 +72,7 @@
 
 .tone-card.selected {
   border-color: var(--evo-primary);
-  background: rgba(0, 102, 255, 0.1);
+  background: var(--evo-bg-active);
 }
 
 .tone-card strong {
@@ -108,7 +111,7 @@
 .memory-card {
   padding: var(--space-4);
   border-radius: var(--radius-xl);
-  background: var(--evo-bg-glass);
+  background: var(--evo-bg-card);
   border: 1px solid var(--evo-border-subtle);
   display: flex;
   flex-direction: column;
@@ -130,13 +133,13 @@
 }
 
 .memory-type-pill.preference {
-  background: rgba(0, 102, 255, 0.12);
+  background: var(--evo-info-bg);
   color: var(--evo-primary);
 }
 
 .memory-type-pill.decision {
-  background: rgba(100, 210, 255, 0.12);
-  color: #64D2FF;
+  background: var(--evo-info-bg);
+  color: var(--evo-info-dark);
 }
 
 .memory-type-pill.fact {
@@ -145,7 +148,7 @@
 }
 
 .memory-type-pill.lesson {
-  background: rgba(255, 167, 38, 0.15);
+  background: var(--evo-warning-bg);
   color: var(--evo-warning);
 }
 
@@ -181,8 +184,18 @@
   color: var(--evo-danger);
   cursor: pointer;
   padding: 0;
-  transition: opacity var(--transition-fast);
+  transition: opacity var(--duration-fast);
 }
+
+.settings-feedback {
+  padding: var(--space-5);
+  border: 1px dashed var(--evo-border);
+  border-radius: var(--radius-lg);
+  color: var(--evo-text-secondary);
+  background: var(--evo-bg-elevated);
+}
+
+.memory-delete-btn:disabled { opacity: 0.55; cursor: wait; }
 
 .memory-delete-btn:hover {
   opacity: 0.8;

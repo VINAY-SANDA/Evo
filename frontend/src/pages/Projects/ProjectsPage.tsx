@@ -19,11 +19,13 @@ export default function ProjectsPage() {
     description: string;
     priority: Priority;
     deadline: string;
+    status: Project['status'];
   }>({
     name: '',
     description: '',
     priority: 'high',
     deadline: new Date(Date.now() + 60 * 86400000).toISOString().split('T')[0],
+    status: 'active',
   });
 
   // New Milestone Form
@@ -38,9 +40,7 @@ export default function ProjectsPage() {
   useEffect(() => {
     getProjects().then(res => {
       setProjects(res);
-      if (res.length > 0 && !selectedProjectId) {
-        setSelectedProjectId(res[0].id);
-      }
+      if (res.length > 0) setSelectedProjectId(current => current || res[0].id);
     });
     getTasks().then(setTasks);
   }, []);
@@ -86,8 +86,7 @@ export default function ProjectsPage() {
       description: formData.description.trim(),
       priority: formData.priority,
       deadline: formData.deadline,
-      status: 'active',
-      progress: 0,
+      ...(editingProjectId ? { status: formData.status } : { status: 'active' as const, progress: 0 }),
     } as const;
     const newProj = editingProjectId
       ? await updateProject(editingProjectId, projectValues)
@@ -101,7 +100,7 @@ export default function ProjectsPage() {
       showToast(editingProjectId ? 'Project updated.' : `Project "${newProj.name}" created`);
       setShowModal(false);
       setEditingProjectId(null);
-      setFormData({ name: '', description: '', priority: 'high', deadline: new Date(Date.now() + 60 * 86400000).toISOString().split('T')[0] });
+      setFormData({ name: '', description: '', priority: 'high', deadline: new Date(Date.now() + 60 * 86400000).toISOString().split('T')[0], status: 'active' });
     } else {
       showToast('Could not save project. Please try again.');
     }
@@ -109,7 +108,7 @@ export default function ProjectsPage() {
 
   const editProject = (project: Project) => {
     setEditingProjectId(project.id);
-    setFormData({ name: project.name, description: project.description || '', priority: project.priority, deadline: project.deadline || '' });
+    setFormData({ name: project.name, description: project.description || '', priority: project.priority, deadline: project.deadline || '', status: project.status });
     setShowModal(true);
   };
 
@@ -179,7 +178,7 @@ export default function ProjectsPage() {
           <h1 className="page-title">Projects & Execution</h1>
           <p className="page-subtitle">Track milestones, deliverables, and team/individual ventures</p>
         </div>
-        <button className="btn btn-primary" onClick={() => { setEditingProjectId(null); setFormData({ name: '', description: '', priority: 'high', deadline: new Date(Date.now() + 60 * 86400000).toISOString().split('T')[0] }); setShowModal(true); }}>
+        <button className="btn btn-primary" onClick={() => { setEditingProjectId(null); setFormData({ name: '', description: '', priority: 'high', deadline: new Date(Date.now() + 60 * 86400000).toISOString().split('T')[0], status: 'active' }); setShowModal(true); }}>
           ➕ New Project
         </button>
       </div>
@@ -385,6 +384,7 @@ export default function ProjectsPage() {
                       />
                     </div>
                   </div>
+                  {editingProjectId && <div className="form-group"><label className="form-label" htmlFor="project-status">Project status</label><select id="project-status" className="form-input" value={formData.status} onChange={e => setFormData({ ...formData, status: e.target.value as Project['status'] })}><option value="active">Active</option><option value="paused">Paused</option><option value="completed">Completed</option><option value="cancelled">Cancelled</option></select></div>}
                 </div>
               </div>
               <div className="modal-footer">

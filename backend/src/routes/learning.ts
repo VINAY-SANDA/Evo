@@ -306,8 +306,10 @@ router.post('/subjects/:id/topics', async (req: Request, res: Response) => {
 });
 
 // GET /api/learning/stats
-router.get('/stats', async (_req: Request, res: Response) => {
+router.get('/stats', async (req: Request, res: Response) => {
   try {
+    const timeZone = typeof req.query.timeZone === 'string' ? req.query.timeZone : 'UTC';
+    try { new Intl.DateTimeFormat('en', { timeZone }); } catch { return res.status(400).json({ error: 'Invalid time zone' }); }
     const subjectsRes = await query(
       'SELECT COUNT(*) as count, COALESCE(SUM(total_time_minutes), 0) as total_time FROM learning_subjects WHERE user_id = $1',
       [DEFAULT_USER_ID]
@@ -323,8 +325,8 @@ router.get('/stats', async (_req: Request, res: Response) => {
       [DEFAULT_USER_ID]
     );
     const studyDaysRes = await query(
-      'SELECT COUNT(DISTINCT studied_at::date) AS count FROM learning_study_sessions WHERE user_id = $1',
-      [DEFAULT_USER_ID]
+      'SELECT COUNT(DISTINCT (studied_at AT TIME ZONE $2)::date) AS count FROM learning_study_sessions WHERE user_id = $1',
+      [DEFAULT_USER_ID, timeZone]
     );
 
     const subCount = Number(subjectsRes.rows[0]?.count) || 0;

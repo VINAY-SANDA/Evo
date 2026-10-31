@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import type { Memory } from '../../types';
-import { getUserProfile, updateUserProfile, getMemories, addMemory } from '../../services/api';
+import { getUserProfile, updateUserProfile, getMemories, addMemory, deleteMemory } from '../../services/api';
 import './SettingsPage.css';
 
 export default function SettingsPage() {
@@ -12,16 +12,27 @@ export default function SettingsPage() {
   const [newMemoryType, setNewMemoryType] = useState<Memory['memoryType']>('preference');
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [loadingMemories, setLoadingMemories] = useState(true);
+  const [memoryLoadError, setMemoryLoadError] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [deletingMemoryId, setDeletingMemoryId] = useState<string | null>(null);
 
   useEffect(() => {
+    let active = true;
     getUserProfile().then(user => {
+      if (!active) return;
       if (user) {
         setUserName(user.name);
         setUserEmail(user.email);
         if (user.aiTone) setAiTone(user.aiTone);
       }
     });
-    getMemories().then(mems => setMemories(mems));
+    getMemories().then(mems => {
+      if (!active) return;
+      if (mems) setMemories(mems);
+      else setMemoryLoadError(true);
+    }).finally(() => { if (active) setLoadingMemories(false); });
+    return () => { active = false; };
   }, []);
 
   const showToast = (msg: string) => {
@@ -31,14 +42,16 @@ export default function SettingsPage() {
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
-    await updateUserProfile({
-      name: userName,
-      email: userEmail,
-      aiTone,
-    });
-    setSavedSuccess(true);
-    showToast('✓ System configuration saved');
-    setTimeout(() => setSavedSuccess(false), 3000);
+    setSaving(true);
+    try {
+      const updated = await updateUserProfile({ name: userName.trim(), email: userEmail.trim(), aiTone });
+      if (!updated) throw new Error('Profile update failed');
+      setSavedSuccess(true);
+      showToast('Profile saved.');
+      setTimeout(() => setSavedSuccess(false), 3000);
+    } catch {
+      showToast('Profile could not be saved. Check your connection and try again.');
+    } finally { setSaving(false); }
   };
 
   const handleAddMemory = async (e: React.FormEvent) => {
@@ -49,19 +62,33 @@ export default function SettingsPage() {
     if (newMem) {
       setMemories([newMem, ...memories]);
       showToast('✓ Memory encoded into vector store');
+    } else {
+      showToast('Memory could not be saved. Check your connection and try again.');
+      return;
     }
     setNewMemoryText('');
   };
 
-  const handleDeleteMemory = (id: string) => {
-    setMemories(prev => prev.filter(m => m.id !== id));
-    showToast('Memory forgotten');
+  const handleDeleteMemory = async (id: string) => {
+    setDeletingMemoryId(id);
+    const deleted = await deleteMemory(id);
+    if (deleted) {
+      setMemories(prev => prev.filter(m => m.id !== id));
+      showToast('Memory deleted.');
+    } else showToast('Memory could not be deleted. Please try again.');
+    setDeletingMemoryId(null);
   };
 
   const handleToneChange = async (tone: 'rigorous' | 'balanced' | 'empathetic') => {
+    const previousTone = aiTone;
     setAiTone(tone);
-    await updateUserProfile({ aiTone: tone });
-    showToast(`AI Persona directive updated to "${tone.toUpperCase()}"`);
+    const updated = await updateUserProfile({ aiTone: tone });
+    if (!updated) {
+      setAiTone(previousTone);
+      showToast('Coaching tone could not be saved. Please try again.');
+      return;
+    }
+    showToast(`Coaching tone set to ${tone}.`);
   };
 
   return (
@@ -108,7 +135,7 @@ export default function SettingsPage() {
               </select>
             </div>
             <button type="submit" className="btn btn-primary">
-              {savedSuccess ? '✓ Saved Profile' : 'Save Changes'}
+              {saving ? 'Saving…' : savedSuccess ? '✓ Saved Profile' : 'Save Changes'}
             </button>
           </form>
         </div>
@@ -119,27 +146,27 @@ export default function SettingsPage() {
           <div className="form-group">
             <label className="form-label">Coaching Tone</label>
             <div className="tone-selector">
-              <div
+              <button type="button" aria-pressed={aiTone === 'rigorous'}
                 className={`tone-card ${aiTone === 'rigorous' ? 'selected' : ''}`}
                 onClick={() => handleToneChange('rigorous')}
               >
                 <strong>Direct & Rigorous</strong>
                 <p>Prioritizes truth over feelings, calls out procrastination and excuses.</p>
-              </div>
-              <div
+              </button>
+              <button type="button" aria-pressed={aiTone === 'balanced'}
                 className={`tone-card ${aiTone === 'balanced' ? 'selected' : ''}`}
                 onClick={() => handleToneChange('balanced')}
               >
                 <strong>Balanced Advisor</strong>
                 <p>Constructive feedback with realistic adjustments.</p>
-              </div>
-              <div
+              </button>
+              <button type="button" aria-pressed={aiTone === 'empathetic'}
                 className={`tone-card ${aiTone === 'empathetic' ? 'selected' : ''}`}
                 onClick={() => handleToneChange('empathetic')}
               >
                 <strong>Encouraging Coach</strong>
                 <p>Focuses on positive reinforcement and mental wellness.</p>
-              </div>
+              </button>
             </div>
           </div>
 
@@ -185,7 +212,7 @@ export default function SettingsPage() {
           </form>
 
           {/* List of Memories */}
-          <div className="memories-list">
+          {loadingMemories ? <p className="settings-feedback" role="status">Loading saved memories…</p> : memoryLoadError ? <p className="settings-feedback" role="alert">Saved memories could not be loaded. Check your connection and reopen Settings.</p> : memories.length === 0 ? <p className="settings-feedback">No saved memories yet. Add one above to help EVO remember what matters to you.</p> : <div className="memories-list">
             {memories.map(mem => (
               <div key={mem.id} className="memory-card">
                 <div className="memory-badge-row">
@@ -196,18 +223,19 @@ export default function SettingsPage() {
                 </div>
                 <p className="memory-text">{mem.text}</p>
                 <div className="memory-footer">
-                  <span className="memory-date">Learned on {mem.createdAt}</span>
+                  <span className="memory-date">Learned {mem.createdAt ? new Date(mem.createdAt).toLocaleDateString() : 'recently'}</span>
                   <button
                     className="memory-delete-btn"
-                    onClick={() => handleDeleteMemory(mem.id)}
+                    onClick={() => void handleDeleteMemory(mem.id)}
+                    disabled={deletingMemoryId === mem.id}
                     title="Delete memory"
                   >
-                    🗑️ Forget
+                    {deletingMemoryId === mem.id ? 'Deleting…' : 'Delete memory'}
                   </button>
                 </div>
               </div>
             ))}
-          </div>
+          </div>}
         </div>
       </div>
     </div>

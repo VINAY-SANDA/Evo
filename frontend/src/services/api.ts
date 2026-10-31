@@ -33,9 +33,21 @@ const API_BASE_URL = rawApiUrl
   : isLocalhost
     ? 'http://localhost:5000'
     : '';
+let lastApiFailureMessage: string | null = null;
 
-async function apiRequest<T>(endpoint: string, options: RequestInit = {}, timeoutMs = 0): Promise<T | null> {
+export function getLastApiFailureMessage() { return lastApiFailureMessage; }
+
+function reportApiFailure(endpoint: string, status?: number) {
+  if (typeof window === 'undefined') return;
+  lastApiFailureMessage = status ? `A request to ${endpoint} failed (${status}).` : `Could not reach the server for ${endpoint}.`;
+  window.dispatchEvent(new CustomEvent('evo-api-error', {
+    detail: { message: lastApiFailureMessage },
+  }));
+}
+
+async function apiRequest<T>(endpoint: string, options: RequestInit = {}, timeoutMs = 12000): Promise<T | null> {
   if (!API_BASE_URL) {
+    reportApiFailure(endpoint);
     console.error(
       `[EVO API ERROR] VITE_API_URL is missing! Cannot call ${endpoint}.\n` +
       `Please add VITE_API_URL (e.g. https://your-backend.onrender.com) to your Vercel Environment Variables and redeploy.`
@@ -62,6 +74,7 @@ async function apiRequest<T>(endpoint: string, options: RequestInit = {}, timeou
       },
     });
     if (!res.ok) {
+      reportApiFailure(endpoint, res.status);
       const errText = await res.text();
       console.error(`[EVO API Error ${res.status}] ${url}:`, errText);
       return null;
@@ -69,9 +82,11 @@ async function apiRequest<T>(endpoint: string, options: RequestInit = {}, timeou
     return (await res.json()) as T;
   } catch (err) {
     if (timeoutController?.signal.aborted) {
+      reportApiFailure(endpoint);
       console.error(`[EVO API Timeout] ${endpoint} did not respond within ${timeoutMs}ms.`);
       return null;
     }
+    reportApiFailure(endpoint);
     console.error(`[EVO Network/CORS Error] Failed to fetch ${url}:`, err);
     return null;
   } finally {
@@ -82,15 +97,20 @@ async function apiRequest<T>(endpoint: string, options: RequestInit = {}, timeou
 async function apiDelete(endpoint: string): Promise<boolean> {
   if (!API_BASE_URL) return false;
   const token = typeof window !== 'undefined' ? getAuthToken() : null;
+  const controller = new AbortController();
+  const timeout = typeof window !== 'undefined' ? window.setTimeout(() => controller.abort(), 12000) : undefined;
   try {
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       method: 'DELETE',
       headers: token ? { Authorization: `Bearer ${token}` } : {},
+      signal: controller.signal,
     });
     return response.ok;
   } catch (error) {
     console.error(`[EVO Network/CORS Error] Failed to delete ${endpoint}:`, error);
     return false;
+  } finally {
+    if (timeout !== undefined && typeof window !== 'undefined') window.clearTimeout(timeout);
   }
 }
 
@@ -379,8 +399,8 @@ export async function getLearningSubjectsWithStatus(): Promise<{ subjects: Learn
   return { subjects: remote?.subjects || [], ok: remote !== null };
 }
 
-export async function getLearningDaysWorked(): Promise<number | null> {
-  const result = await apiRequest<{ daysWorked: number }>('/api/learning/stats');
+export async function getLearningDaysWorked(timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'): Promise<number | null> {
+  const result = await apiRequest<{ daysWorked: number }>(`/api/learning/stats?timeZone=${encodeURIComponent(timeZone)}`);
   return result ? Number(result.daysWorked) || 0 : null;
 }
 
@@ -551,6 +571,10 @@ export async function createDiaryEntry(entry: Pick<DiaryEntry, 'title' | 'body' 
   return apiRequest<DiaryEntry>('/api/library/diary', { method: 'POST', body: JSON.stringify(entry) });
 }
 
+export async function updateDiaryEntry(id: string, entry: Pick<DiaryEntry, 'title' | 'body' | 'date'>): Promise<DiaryEntry | null> {
+  return apiRequest<DiaryEntry>(`/api/library/diary/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(entry) });
+}
+
 export async function deleteDiaryEntry(id: string): Promise<boolean> {
   return apiDelete(`/api/library/diary/${id}`);
 }
@@ -562,6 +586,10 @@ export async function getMovieReviews(): Promise<MovieReview[] | null> {
 
 export async function createMovieReview(entry: Pick<MovieReview, 'title' | 'year' | 'rating' | 'review' | 'watchedAt'>): Promise<MovieReview | null> {
   return apiRequest<MovieReview>('/api/library/movies', { method: 'POST', body: JSON.stringify(entry) });
+}
+
+export async function updateMovieReview(id: string, entry: Pick<MovieReview, 'title' | 'year' | 'rating' | 'review' | 'watchedAt'>): Promise<MovieReview | null> {
+  return apiRequest<MovieReview>(`/api/library/movies/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(entry) });
 }
 
 export async function deleteMovieReview(id: string): Promise<boolean> {
@@ -611,24 +639,18 @@ export async function getUserProfile(): Promise<User> {
   };
 }
 
-export async function updateUserProfile(profile: Partial<User>): Promise<User> {
+export async function updateUserProfile(profile: Partial<User>): Promise<User | null> {
   const remote = await apiRequest<User>('/api/user/profile', {
     method: 'PATCH',
     body: JSON.stringify(profile),
   });
-  return remote || {
-    id: '00000000-0000-0000-0000-000000000001',
-    name: 'Vinay',
-    email: 'vinay@example.com',
-    timezone: 'Asia/Kolkata',
-    aiTone: 'rigorous',
-    ...profile,
-  };
+  return remote;
 }
 
-export async function getMemories(): Promise<Memory[]> {
+export async function getMemories(): Promise<Memory[] | null> {
   const remote = await apiRequest<{ memories: Array<Memory & { type?: string }> }>('/api/memories');
-  return (remote?.memories || []).map(memory => ({
+  if (!remote) return null;
+  return remote.memories.map(memory => ({
     ...memory,
     memoryType: memory.memoryType || memory.type || 'preference',
     importance: Number(memory.importance) || 7,
@@ -641,4 +663,8 @@ export async function addMemory(text: string, type: string = 'preference', impor
     body: JSON.stringify({ text, type, importance }),
   });
   return saved ? { ...saved, memoryType: saved.memoryType || saved.type || type } : null;
+}
+
+export async function deleteMemory(id: string): Promise<boolean> {
+  return apiDelete(`/api/memories/${encodeURIComponent(id)}`);
 }
