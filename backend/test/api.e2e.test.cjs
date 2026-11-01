@@ -108,6 +108,15 @@ test('authenticated API feature journeys work across EVO modules', async (t) => 
     if (/SELECT completed FROM habit_logs/i.test(normalized)) {
       return { rows: [], rowCount: 0 };
     }
+    if (/SELECT ss\.\* FROM learning_study_sessions/i.test(normalized)) {
+      return { rows: [{ ...baseRow, duration_minutes: 25, subject_id: OWNED_ID, topic_id: OWNED_ID, note: '' }], rowCount: 1 };
+    }
+    if (/SELECT c\.id, c\.amount, c\.savings_goal_id FROM savings_contributions/i.test(normalized)) {
+      return { rows: [{ id: OWNED_ID, amount: 200, savings_goal_id: OWNED_ID }], rowCount: 1 };
+    }
+    if (/SELECT \* FROM tasks WHERE id = \$1 AND user_id = \$2/i.test(normalized)) {
+      return { rows: [{ ...baseRow, title: 'EVO_E2E_fixture', recurrence_frequency: null }], rowCount: 1 };
+    }
     if (/SELECT id FROM habits WHERE id = \$1 AND user_id = \$2/i.test(normalized)) {
       return { rows: [{ id: OWNED_ID }], rowCount: 1 };
     }
@@ -190,6 +199,7 @@ test('authenticated API feature journeys work across EVO modules', async (t) => 
       assert.match(coach.data.content, /GEMINI_API_KEY/);
       assert.equal((await request('/api/memories')).status, 200);
       assert.equal((await request('/api/memories', { method: 'POST', body: { text: 'EVO_E2E_fixture' } })).status, 201);
+      assert.equal((await request(`/api/memories/${OWNED_ID}`, { method: 'PATCH', body: { text: 'Updated fixture' } })).status, 200);
     });
 
     await t.test('goals, progress, milestones, and deletion', async () => {
@@ -199,6 +209,7 @@ test('authenticated API feature journeys work across EVO modules', async (t) => 
       assert.equal((await request(`/api/goals/${OWNED_ID}`, { method: 'PATCH', body: { progress: 40 } })).status, 200);
       assert.equal((await request(`/api/goals/${OWNED_ID}/milestones`)).status, 200);
       assert.equal((await request(`/api/goals/${OWNED_ID}/milestones`, { method: 'POST', body: { title: 'EVO_E2E_fixture' } })).status, 201);
+      assert.equal((await request(`/api/goals/milestones/${OWNED_ID}`, { method: 'PATCH', body: { title: 'Updated milestone' } })).status, 200);
       assert.equal((await request(`/api/goals/milestones/${OWNED_ID}/toggle`, { method: 'PATCH' })).status, 200);
       assert.equal((await request(`/api/goals/milestones/${OWNED_ID}`, { method: 'DELETE' })).status, 204);
       assert.equal((await request(`/api/goals/${OWNED_ID}`, { method: 'DELETE' })).status, 204);
@@ -209,6 +220,7 @@ test('authenticated API feature journeys work across EVO modules', async (t) => 
       assert.equal((await request('/api/tasks')).status, 200);
       assert.equal((await request('/api/tasks/today')).status, 200);
       assert.equal((await request('/api/tasks', { method: 'POST', body: { title: 'EVO_E2E_fixture' } })).status, 201);
+      assert.equal((await request(`/api/tasks/${OWNED_ID}`, { method: 'PATCH', body: { title: 'Updated fixture' } })).status, 200);
       const recurringTask = await request('/api/tasks', { method: 'POST', body: { title: 'EVO_E2E_fixture repeat', recurrenceFrequency: 'weekdays', projectId: OWNED_ID } });
       assert.equal(recurringTask.status, 201);
       assert.match(calls.at(-1).sql, /recurrence_frequency/);
@@ -224,6 +236,7 @@ test('authenticated API feature journeys work across EVO modules', async (t) => 
       assert.match(activeHabitRead.sql, /h\.active = TRUE/i);
       assert.equal((await request('/api/habits?includeArchived=true')).status, 200);
       assert.equal((await request('/api/habits', { method: 'POST', body: { name: 'EVO_E2E_fixture' } })).status, 201);
+      assert.equal((await request(`/api/habits/${OWNED_ID}`, { method: 'PATCH', body: { name: 'Updated fixture' } })).status, 200);
       assert.equal((await request(`/api/habits/${OWNED_ID}/complete`, { method: 'POST' })).status, 200);
       assert.equal((await request(`/api/habits/${OWNED_ID}/archive`, { method: 'PATCH' })).status, 200);
       assert.equal(calls.at(-1).params[0], false);
@@ -246,9 +259,11 @@ test('authenticated API feature journeys work across EVO modules', async (t) => 
       assert.equal((await request('/api/finance/expenses')).status, 200);
       assert.equal((await request('/api/finance/expenses', { method: 'POST', body: { amount: -1 } })).status, 400);
       assert.equal((await request('/api/finance/expenses', { method: 'POST', body: { amount: 50, description: 'EVO_E2E_fixture' } })).status, 201);
+      assert.equal((await request(`/api/finance/expenses/${OWNED_ID}`, { method: 'PATCH', body: { amount: 55, description: 'Updated fixture' } })).status, 200);
       assert.equal((await request('/api/finance/income')).status, 200);
       assert.equal((await request('/api/finance/income', { method: 'POST', body: { amount: 0 } })).status, 400);
       assert.equal((await request('/api/finance/income', { method: 'POST', body: { amount: 100, source: 'EVO_E2E_fixture' } })).status, 201);
+      assert.equal((await request(`/api/finance/income/${OWNED_ID}`, { method: 'PATCH', body: { amount: 110, source: 'Updated fixture' } })).status, 200);
       assert.equal((await request(`/api/finance/income/${OWNED_ID}`, { method: 'DELETE' })).status, 204);
       assert.match(calls.at(-1).sql, /DELETE FROM incomes WHERE id = \$1 AND user_id = \$2/i);
       assert.deepEqual(calls.at(-1).params, [OWNED_ID, DEFAULT_USER_ID]);
@@ -256,6 +271,7 @@ test('authenticated API feature journeys work across EVO modules', async (t) => 
       assert.equal((await request('/api/finance/savings')).status, 200);
       assert.equal((await request('/api/finance/savings', { method: 'POST', body: { title: 'Invalid', targetAmount: 0 } })).status, 400);
       assert.equal((await request('/api/finance/savings', { method: 'POST', body: { title: 'EVO_E2E_fixture', targetAmount: 1000 } })).status, 201);
+      assert.equal((await request(`/api/finance/savings/${OWNED_ID}`, { method: 'PATCH', body: { targetAmount: 1200 } })).status, 200);
       assert.equal((await request(`/api/finance/savings/${OWNED_ID}`, { method: 'DELETE' })).status, 204);
       assert.match(calls.at(-1).sql, /DELETE FROM savings_goals WHERE id = \$1 AND user_id = \$2/i);
       assert.deepEqual(calls.at(-1).params, [OWNED_ID, DEFAULT_USER_ID]);
@@ -269,21 +285,25 @@ test('authenticated API feature journeys work across EVO modules', async (t) => 
       assert.match(calls.at(-1).sql, /ON CONFLICT \(user_id, category, month\)/);
       assert.equal((await request(`/api/finance/budgets/${OWNED_ID}`, { method: 'DELETE' })).status, 204);
       assert.equal((await request(`/api/finance/savings/${OWNED_ID}/contributions`, { method: 'POST', body: { amount: 200, note: 'EVO_E2E_fixture' } })).status, 201);
-      assert.match(calls.at(-1).sql, /INSERT INTO savings_contributions/);
       assert.equal((await request(`/api/finance/savings/${OWNED_ID}/contributions`)).status, 200);
+      assert.equal((await request(`/api/finance/savings/${OWNED_ID}/contributions/${OWNED_ID}`, { method: 'PATCH', body: { amount: 250, note: 'Edited' } })).status, 200);
+      assert.ok(calls.some(call => /INSERT INTO savings_contributions/.test(call.sql)));
     });
 
     await t.test('learning subjects, topics, and statistics', async () => {
       assert.equal((await request('/api/learning/subjects')).status, 200);
       assert.equal((await request('/api/learning/subjects', { method: 'POST', body: { name: 'EVO_E2E_fixture' } })).status, 201);
+      assert.equal((await request(`/api/learning/subjects/${OWNED_ID}`, { method: 'PATCH', body: { name: 'Updated track' } })).status, 200);
       assert.equal((await request(`/api/learning/subjects/${OWNED_ID}/topics`)).status, 200);
       assert.equal((await request(`/api/learning/subjects/${OWNED_ID}/topics`, { method: 'POST', body: { name: 'EVO_E2E_fixture' } })).status, 201);
       assert.equal((await request(`/api/learning/topics/${OWNED_ID}`, { method: 'PATCH', body: { status: 'completed' } })).status, 200);
+      assert.equal((await request(`/api/learning/topics/${OWNED_ID}`, { method: 'PATCH', body: { name: 'Updated topic', notes: 'Edited' } })).status, 200);
       assert.equal((await request(`/api/learning/topics/${OWNED_ID}`, { method: 'DELETE' })).status, 204);
       assert.equal((await request(`/api/learning/topics/${FOREIGN_ID}`, { method: 'DELETE' })).status, 404);
       assert.equal((await request('/api/learning/stats')).status, 200);
       assert.equal((await request('/api/learning/study-sessions')).status, 200);
       assert.equal((await request('/api/learning/study-sessions', { method: 'POST', body: { subjectId: OWNED_ID, topicId: OWNED_ID, durationMinutes: 25 } })).status, 201);
+      assert.equal((await request(`/api/learning/study-sessions/${OWNED_ID}`, { method: 'PATCH', body: { durationMinutes: 30, note: 'Edited session' } })).status, 200);
       assert.ok(calls.some(call => /learning_study_sessions/.test(call.sql)));
       assert.equal((await request(`/api/learning/topics/${FOREIGN_ID}`, { method: 'PATCH', body: { status: 'completed' } })).status, 404);
       assert.equal((await request(`/api/learning/subjects/${OWNED_ID}`, { method: 'DELETE' })).status, 204);
@@ -295,6 +315,7 @@ test('authenticated API feature journeys work across EVO modules', async (t) => 
       assert.equal((await request('/api/projects', { method: 'POST', body: { name: 'EVO_E2E_fixture' } })).status, 201);
       assert.equal((await request(`/api/projects/${OWNED_ID}/milestones`)).status, 200);
       assert.equal((await request(`/api/projects/${OWNED_ID}/milestones`, { method: 'POST', body: { title: 'EVO_E2E_fixture' } })).status, 201);
+      assert.equal((await request(`/api/projects/milestones/${OWNED_ID}`, { method: 'PATCH', body: { title: 'Updated milestone' } })).status, 200);
       assert.equal((await request(`/api/projects/milestones/${OWNED_ID}/toggle`, { method: 'PATCH' })).status, 200);
       assert.equal((await request(`/api/projects/milestones/${FOREIGN_ID}/toggle`, { method: 'PATCH' })).status, 404);
     });

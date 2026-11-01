@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import type { LearningSubject, LearningTopic, StudySession } from '../../types';
 import {
   createLearningSubject,
+  updateLearningSubject,
   createTopic,
   deleteLearningSubject,
   deleteLearningTopic,
@@ -12,6 +13,7 @@ import {
   getStudySessions,
   logStudySession,
   updateLearningTopic,
+  updateStudySession,
   updateTopicStatus,
 } from '../../services/api';
 import './LearningPage.css';
@@ -55,7 +57,9 @@ export default function LearningPage() {
   const [topics, setTopics] = useState<LearningTopic[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [showTopicModal, setShowTopicModal] = useState(false);
+  const [editingTopicId, setEditingTopicId] = useState<string | null>(null);
   const [showSubjectModal, setShowSubjectModal] = useState(false);
+  const [editingSubjectId, setEditingSubjectId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -289,17 +293,20 @@ export default function LearningPage() {
     const name = newSubjectName.trim();
     if (!name || saving) return;
     setSaving(true);
-    const subject = await createLearningSubject({ name, icon: '📚', color: '#0066FF' });
+    const subject = editingSubjectId
+      ? await updateLearningSubject(editingSubjectId, { name })
+      : await createLearningSubject({ name, icon: '📚', color: '#0066FF' });
     setSaving(false);
     if (!subject) {
       showToast('Could not add this learning track. Please try again.');
       return;
     }
-    setSubjects(prev => [...prev, subject]);
-    setSelectedSubjectId(subject.id);
+    setSubjects(prev => editingSubjectId ? prev.map(item => item.id === editingSubjectId ? { ...item, ...subject } : item) : [...prev, subject]);
+    if (!editingSubjectId) setSelectedSubjectId(subject.id);
     setNewSubjectName('');
+    setEditingSubjectId(null);
     setShowSubjectModal(false);
-    showToast(`Learning track “${subject.name}” added.`);
+    showToast(editingSubjectId ? `Learning track “${subject.name}” updated.` : `Learning track “${subject.name}” added.`);
   };
 
   const handleAddTopic = async (e: React.FormEvent) => {
@@ -308,24 +315,25 @@ export default function LearningPage() {
     if (!newTopicName.trim() || !subject || saving) return;
 
     setSaving(true);
-    const newTop = await createTopic(subject.id, {
+    const topicValues = {
       name: newTopicName.trim(),
       difficulty: newTopicDifficulty,
       notes: newTopicNotes.trim(),
       resourceUrl: newTopicResource.trim(),
       nextReviewDate: newTopicReviewDate || undefined,
       reviewIntervalDays: newTopicReviewInterval,
-    });
+    };
+    const newTop = editingTopicId ? await updateLearningTopic(editingTopicId, topicValues) : await createTopic(subject.id, topicValues);
     setSaving(false);
 
     if (newTop) {
-      setTopics(prev => [...prev, newTop]);
+      setTopics(prev => editingTopicId ? prev.map(topic => topic.id === editingTopicId ? newTop : topic) : [...prev, newTop]);
       setSubjects(sList => sList.map(s => s.id === subject.id ? {
         ...s,
         totalTopics: s.totalTopics + 1,
       } : s));
       void refreshSubjects();
-      showToast(`Topic “${newTop.name}” added to ${subject.name}.`);
+      showToast(editingTopicId ? `Topic “${newTop.name}” updated.` : `Topic “${newTop.name}” added to ${subject.name}.`);
     } else {
       showToast('Could not add this topic. Please try again.');
       return;
@@ -336,7 +344,33 @@ export default function LearningPage() {
     setNewTopicResource('');
     setNewTopicReviewDate('');
     setNewTopicReviewInterval(3);
+    setEditingTopicId(null);
     setShowTopicModal(false);
+  };
+
+  const editTopic = (topic: LearningTopic) => {
+    setEditingTopicId(topic.id);
+    setNewTopicName(topic.name);
+    setNewTopicDifficulty(topic.difficulty);
+    setNewTopicNotes(topic.notes || '');
+    setNewTopicResource(topic.resourceUrl || '');
+    setNewTopicReviewDate(topic.nextReviewDate || '');
+    setNewTopicReviewInterval(topic.reviewIntervalDays || 3);
+    setShowTopicModal(true);
+  };
+
+  const editStudySession = async (session: StudySession) => {
+    const rawDuration = window.prompt('Study minutes', String(session.durationMinutes));
+    if (rawDuration === null) return;
+    const durationMinutes = Number(rawDuration);
+    if (!Number.isInteger(durationMinutes) || durationMinutes < 1 || durationMinutes > 1440) { showToast('Enter a study duration from 1 to 1440 minutes.'); return; }
+    const note = window.prompt('Study note', session.note || '');
+    if (note === null) return;
+    const updated = await updateStudySession(session.id, { durationMinutes, note });
+    if (!updated) { showToast('Study session could not be updated. Please try again.'); return; }
+    setStudySessions(items => items.map(item => item.id === session.id ? { ...item, ...updated } : item));
+    showToast('Study session updated.');
+    void refreshSubjects();
   };
 
   const handleDeleteSubject = async (subject: LearningSubject) => {
@@ -436,6 +470,7 @@ export default function LearningPage() {
             <span>{session.topicName || 'Track study'}{session.note ? ` · ${session.note}` : ''}</span>
             <strong>{session.durationMinutes} min</strong>
             <time>{new Date(session.studiedAt).toLocaleDateString('en-IN')}</time>
+            <button className="btn btn-secondary sm" onClick={() => void editStudySession(session)}>Edit</button>
           </div>)}
         </div>
       </section>}
@@ -465,6 +500,10 @@ export default function LearningPage() {
                 <span className="subject-progress-pill" style={{ color: subj.color, borderColor: `${subj.color}40` }}>
                   {subj.progress}%
                 </span>
+                <button
+                  className="btn btn-secondary sm"
+                  onClick={event => { event.stopPropagation(); setEditingSubjectId(subj.id); setNewSubjectName(subj.name); setShowSubjectModal(true); }}
+                >Edit</button>
                 <button
                   className="icon-button subject-delete-button"
                   aria-label={`Delete ${subj.name} learning track`}
@@ -560,6 +599,7 @@ export default function LearningPage() {
                     {topic.status === 'not_started' && '⭕ Mark Started'}
                   </button>
                   <button className="btn btn-secondary sm" onClick={() => startFocus(topic.id)} disabled={Boolean(focusTopicId)} title="Start a 25-minute study sprint">25m Focus</button>
+                  <button className="btn btn-secondary sm" onClick={() => editTopic(topic)}>Edit</button>
                   <button
                     className="icon-button topic-delete-button"
                     aria-label={`Delete topic ${topic.name}`}
@@ -592,8 +632,8 @@ export default function LearningPage() {
         <div className="modal-overlay" onClick={() => setShowTopicModal(false)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
-              <h2 className="modal-title">Add Topic to {currentSubject.name}</h2>
-              <button className="modal-close" onClick={() => setShowTopicModal(false)}>✕</button>
+              <h2 className="modal-title">{editingTopicId ? 'Edit Topic' : `Add Topic to ${currentSubject.name}`}</h2>
+              <button className="modal-close" onClick={() => { setShowTopicModal(false); setEditingTopicId(null); }}>✕</button>
             </div>
             <form onSubmit={handleAddTopic}>
               <div className="modal-body">
@@ -627,8 +667,8 @@ export default function LearningPage() {
                 </div>
               </div>
               <div className="modal-footer">
-                <button type="button" className="btn btn-secondary" onClick={() => setShowTopicModal(false)}>Cancel</button>
-                <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Adding…' : 'Add Topic'}</button>
+                <button type="button" className="btn btn-secondary" onClick={() => { setShowTopicModal(false); setEditingTopicId(null); }}>Cancel</button>
+                <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Saving…' : editingTopicId ? 'Save changes' : 'Add Topic'}</button>
               </div>
             </form>
           </div>
@@ -639,8 +679,8 @@ export default function LearningPage() {
         <div className="modal-overlay" onClick={() => setShowSubjectModal(false)}>
           <div className="modal" onClick={event => event.stopPropagation()}>
             <div className="modal-header">
-              <h2 className="modal-title">Add Learning Track</h2>
-              <button className="modal-close" onClick={() => setShowSubjectModal(false)}>✕</button>
+              <h2 className="modal-title">{editingSubjectId ? 'Edit Learning Track' : 'Add Learning Track'}</h2>
+              <button className="modal-close" onClick={() => { setShowSubjectModal(false); setEditingSubjectId(null); }}>✕</button>
             </div>
             <form onSubmit={handleAddSubject}>
               <div className="modal-body">
@@ -659,8 +699,8 @@ export default function LearningPage() {
                 </div>
               </div>
               <div className="modal-footer">
-                <button type="button" className="btn btn-secondary" onClick={() => setShowSubjectModal(false)}>Cancel</button>
-                <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Adding…' : 'Add Track'}</button>
+                <button type="button" className="btn btn-secondary" onClick={() => { setShowSubjectModal(false); setEditingSubjectId(null); }}>Cancel</button>
+                <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Saving…' : editingSubjectId ? 'Save changes' : 'Add Track'}</button>
               </div>
             </form>
           </div>

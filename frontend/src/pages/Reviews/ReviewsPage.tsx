@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import type { DailyReview, WeeklyReview } from '../../types';
-import { getDailyReview, getWeeklyReview, createTask, getTasks, getHabits, getGoals, sendAiChatMessage, saveDailyReview, saveWeeklyReview } from '../../services/api';
+import { getDailyReview, getWeeklyReviews, createTask, getTasks, getHabits, getGoals, sendAiChatMessage, saveDailyReview, saveWeeklyReview } from '../../services/api';
 import './ReviewsPage.css';
 
 const defaultDailyReview: DailyReview = {
@@ -34,6 +34,8 @@ export default function ReviewsPage() {
   const [tab, setTab] = useState<'daily' | 'weekly'>('daily');
   const [dailyReview, setDailyReview] = useState<DailyReview>(defaultDailyReview);
   const [weeklyReview, setWeeklyReview] = useState<WeeklyReview>(defaultWeeklyReview);
+  const [weeklyReviews, setWeeklyReviews] = useState<WeeklyReview[]>([]);
+  const [selectedWeeklyReviewId, setSelectedWeeklyReviewId] = useState<string | null>(null);
   const [showReflectionModal, setShowReflectionModal] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -45,10 +47,16 @@ export default function ReviewsPage() {
     getDailyReview().then(res => {
       if (res) setDailyReview(res);
     });
-    getWeeklyReview().then(res => {
-      if (res) setWeeklyReview(res);
+    getWeeklyReviews().then(reviews => {
+      setWeeklyReviews(reviews);
+      if (reviews.length) {
+        setWeeklyReview(reviews[0]);
+        setSelectedWeeklyReviewId(reviews[0].id);
+      }
     });
   }, []);
+
+  const displayedWeeklyReview = weeklyReviews.find(review => review.id === selectedWeeklyReviewId) || weeklyReview;
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -135,6 +143,8 @@ export default function ReviewsPage() {
       });
       if (!review) { showToast('Weekly review could not be saved. Please try again.'); return; }
       setWeeklyReview(review);
+      setWeeklyReviews(current => [review, ...current.filter(existing => existing.id !== review.id)]);
+      setSelectedWeeklyReviewId(review.id);
       showToast('Gemini generated your weekly review and EVO saved it.');
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Gemini could not generate the weekly review. Please try again.');
@@ -272,17 +282,18 @@ export default function ReviewsPage() {
         </div>
       ) : (
         <div className="review-container animate-fade-in-up">
+          {weeklyReviews.length > 0 && <section className="card weekly-history-card" aria-label="Past weekly reviews"><div className="weekly-history-heading"><div><h2 className="card-title">Review history</h2><p>Choose a saved week to revisit its score and priorities.</p></div><span>{weeklyReviews.length} saved</span></div><div className="weekly-history-list">{weeklyReviews.map(review => <button key={review.id} className={`weekly-history-item ${selectedWeeklyReviewId === review.id ? 'selected' : ''}`} onClick={() => setSelectedWeeklyReviewId(review.id)}><span>{review.weekStart} – {review.weekEnd}</span><strong>{review.overallScore}/100</strong></button>)}</div></section>}
           {/* Weekly Scorecard */}
           <div className="card review-hero-card">
             <div className="review-hero-header">
               <div>
                 <span className="badge badge-success">Weekly Executive Summary</span>
                 <h2 className="review-title">
-                  {weeklyReview.weekStart} to {weeklyReview.weekEnd}
+                  {displayedWeeklyReview.weekStart} to {displayedWeeklyReview.weekEnd}
                 </h2>
               </div>
               <div className="review-score-badge weekly">
-                <span className="score-number">{weeklyReview.overallScore}</span>
+                <span className="score-number">{displayedWeeklyReview.overallScore}</span>
                 <span className="score-max">/100</span>
               </div>
             </div>
@@ -290,11 +301,11 @@ export default function ReviewsPage() {
             <div className="weekly-highlights">
               <div className="highlight-item achievement">
                 <span className="highlight-tag">🌟 Biggest Achievement</span>
-                <p className="highlight-text">{weeklyReview.biggestAchievement}</p>
+                <p className="highlight-text">{displayedWeeklyReview.biggestAchievement}</p>
               </div>
               <div className="highlight-item problem">
                 <span className="highlight-tag">🔴 Primary Bottleneck</span>
-                <p className="highlight-text">{weeklyReview.biggestProblem}</p>
+                <p className="highlight-text">{displayedWeeklyReview.biggestProblem}</p>
               </div>
             </div>
           </div>
@@ -302,9 +313,9 @@ export default function ReviewsPage() {
           {/* Next Week Priorities */}
           <div className="card priorities-card">
             <h3 className="priorities-title">🎯 Next Week Key Directives</h3>
-            {weeklyReview.nextWeekPriorities && weeklyReview.nextWeekPriorities.length > 0 ? (
+            {displayedWeeklyReview.nextWeekPriorities && displayedWeeklyReview.nextWeekPriorities.length > 0 ? (
               <div className="priorities-list">
-                {weeklyReview.nextWeekPriorities.map((p, idx) => (
+                {displayedWeeklyReview.nextWeekPriorities.map((p, idx) => (
                   <div key={idx} className="priority-item-card">
                     <span className="priority-index">{idx + 1}</span>
                     <span className="priority-text">{p}</span>

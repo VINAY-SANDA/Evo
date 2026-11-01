@@ -194,13 +194,15 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: var(--space-4);
-  margin-bottom: var(--space-5);
-  padding: var(--space-4);
-  color: var(--evo-danger-dark);
-  border-color: var(--evo-danger);
-  background: var(--evo-danger-bg);
+  margin: 0 0 var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border-color: var(--evo-warning);
+  background: var(--evo-warning-bg);
+  color: var(--evo-text-primary);
 }
-.api-error-banner > div { display: flex; gap: var(--space-2); flex-shrink: 0; }
+.api-error-banner > div { max-width: 620px; }
+.api-error-banner p { margin-top: var(--space-2); color: var(--evo-text-secondary); }
+.api-loading-banner { justify-content: flex-start; border-color: var(--evo-border); background: var(--evo-bg-card); color: var(--evo-text-secondary); }
 @media (max-width: 640px) { .api-error-banner { align-items: flex-start; flex-direction: column; } }
 
 a {

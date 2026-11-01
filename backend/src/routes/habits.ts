@@ -83,6 +83,27 @@ router.post('/', async (req: Request, res: Response) => {
   }
 });
 
+router.patch('/:id', async (req: Request, res: Response) => {
+  try {
+    const body = req.body;
+    const scheduleDays = Array.isArray(body.scheduleDays)
+      ? [...new Set(body.scheduleDays.map(Number).filter((day: number) => Number.isInteger(day) && day >= 0 && day <= 6))]
+      : undefined;
+    const result = await query(`UPDATE habits SET
+      name = COALESCE($1, name), description = COALESCE($2, description), icon = COALESCE($3, icon), color = COALESCE($4, color),
+      frequency = COALESCE($5, frequency), schedule_days = COALESCE($6, schedule_days), target = COALESCE($7, target), unit = COALESCE($8, unit)
+      WHERE id = $9 AND user_id = $10
+      RETURNING id, user_id as "userId", name, description, icon, color, frequency, schedule_days as "scheduleDays", target, unit,
+        current_streak as "currentStreak", longest_streak as "longestStreak", active, to_char(created_at, 'YYYY-MM-DD') as "createdAt"`, [
+      body.name === undefined ? null : String(body.name).trim(), body.description === undefined ? null : String(body.description).trim(),
+      body.icon ?? null, body.color ?? null, body.frequency ?? null, scheduleDays ?? null,
+      body.target === undefined ? null : Math.max(1, Number(body.target) || 1), body.unit ?? null, req.params.id, DEFAULT_USER_ID,
+    ]);
+    if (!result.rows.length) return res.status(404).json({ error: 'Habit not found' });
+    res.json(result.rows[0]);
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
 router.get('/summary/weekly', async (_req: Request, res: Response) => {
   try {
     const result = await query(`

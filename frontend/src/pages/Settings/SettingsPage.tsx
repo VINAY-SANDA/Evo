@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import type { Memory } from '../../types';
-import { getUserProfile, updateUserProfile, getMemories, addMemory, deleteMemory } from '../../services/api';
+import { getUserProfile, updateUserProfile, getMemories, addMemory, updateMemory, deleteMemory } from '../../services/api';
 import './SettingsPage.css';
 
 export default function SettingsPage() {
@@ -16,6 +16,7 @@ export default function SettingsPage() {
   const [memoryLoadError, setMemoryLoadError] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deletingMemoryId, setDeletingMemoryId] = useState<string | null>(null);
+  const [editingMemoryId, setEditingMemoryId] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -58,15 +59,18 @@ export default function SettingsPage() {
     e.preventDefault();
     if (!newMemoryText.trim()) return;
 
-    const newMem = await addMemory(newMemoryText.trim(), newMemoryType, 8);
+    const newMem = editingMemoryId
+      ? await updateMemory(editingMemoryId, { text: newMemoryText.trim(), memoryType: newMemoryType })
+      : await addMemory(newMemoryText.trim(), newMemoryType, 8);
     if (newMem) {
-      setMemories([newMem, ...memories]);
-      showToast('✓ Memory encoded into vector store');
+      setMemories(current => editingMemoryId ? current.map(memory => memory.id === editingMemoryId ? newMem : memory) : [newMem, ...current]);
+      showToast(editingMemoryId ? 'Memory updated.' : '✓ Memory encoded into vector store');
     } else {
       showToast('Memory could not be saved. Check your connection and try again.');
       return;
     }
     setNewMemoryText('');
+    setEditingMemoryId(null);
   };
 
   const handleDeleteMemory = async (id: string) => {
@@ -207,8 +211,9 @@ export default function SettingsPage() {
               <option value="lesson">Lesson</option>
             </select>
             <button type="submit" className="btn btn-primary sm">
-              + Store Memory
+              {editingMemoryId ? 'Save changes' : '+ Store Memory'}
             </button>
+            {editingMemoryId && <button type="button" className="btn btn-secondary sm" onClick={() => { setEditingMemoryId(null); setNewMemoryText(''); setNewMemoryType('preference'); }}>Cancel</button>}
           </form>
 
           {/* List of Memories */}
@@ -224,6 +229,10 @@ export default function SettingsPage() {
                 <p className="memory-text">{mem.text}</p>
                 <div className="memory-footer">
                   <span className="memory-date">Learned {mem.createdAt ? new Date(mem.createdAt).toLocaleDateString() : 'recently'}</span>
+                  <button
+                    className="btn btn-secondary sm"
+                    onClick={() => { setEditingMemoryId(mem.id); setNewMemoryText(mem.text); setNewMemoryType(mem.memoryType || 'preference'); }}
+                  >Edit</button>
                   <button
                     className="memory-delete-btn"
                     onClick={() => void handleDeleteMemory(mem.id)}

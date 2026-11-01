@@ -129,6 +129,22 @@ router.post('/:id/milestones', async (req: Request, res: Response) => {
   }
 });
 
+router.patch('/milestones/:id', async (req: Request, res: Response) => {
+  try {
+    const title = typeof req.body.title === 'string' ? req.body.title.trim() : '';
+    if (!title) return res.status(400).json({ error: 'title is required' });
+    const result = await query(`UPDATE project_milestones pm SET title = $1
+      FROM projects p WHERE pm.id = $2 AND pm.project_id = p.id AND p.user_id = $3
+      RETURNING pm.id, pm.project_id as "projectId", pm.title, pm.order_index as "orderIndex", pm.status,
+        to_char(pm.completed_at, 'YYYY-MM-DD') as "completedAt", pm.created_at as "createdAt"`, [title, req.params.id, DEFAULT_USER_ID]);
+    if (!result.rows.length) return res.status(404).json({ error: 'Milestone not found' });
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error updating project milestone:', error);
+    res.status(500).json({ error: 'Could not update project milestone' });
+  }
+});
+
 // PATCH /api/projects/milestones/:id/toggle
 router.patch('/milestones/:id/toggle', async (req: Request, res: Response) => {
   try {

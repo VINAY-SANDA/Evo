@@ -237,6 +237,21 @@ router.post('/:id/milestones', async (req: Request, res: Response) => {
   }
 });
 
+router.patch('/milestones/:mId', async (req: Request, res: Response) => {
+  try {
+    const title = typeof req.body.title === 'string' ? req.body.title.trim() : '';
+    if (!title) return res.status(400).json({ error: 'title is required' });
+    const result = await query(`UPDATE goal_milestones gm SET title = $1
+      FROM goals g WHERE gm.id = $2 AND gm.goal_id = g.id AND g.user_id = $3
+      RETURNING gm.id, gm.goal_id as "goalId", gm.title, gm.status, gm.created_at as "createdAt"`, [title, req.params.mId, DEFAULT_USER_ID]);
+    if (!result.rows.length) return res.status(404).json({ error: 'Milestone not found' });
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error updating goal milestone:', error);
+    res.status(500).json({ error: 'Failed to update milestone' });
+  }
+});
+
 // DELETE /api/goals/:id
 router.delete('/:id', async (req: Request, res: Response) => {
   try {

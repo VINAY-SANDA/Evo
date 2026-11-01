@@ -1,14 +1,18 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import type { Task, Habit, ProgressScore } from '../../types';
+import type { Task, Habit, ProgressScore, Project, ProjectMilestone, Reminder, StudySession } from '../../types';
 import {
   getHabits,
-  getTodayTasks,
+  getTasks,
   toggleHabitComplete,
   toggleTaskStatus,
   getDashboardData,
   getFinanceSummary,
   getProgressScores,
+  getProjects,
+  getProjectMilestones,
+  getReminders,
+  getStudySessions,
 } from '../../services/api';
 import './HomePage.css';
 
@@ -41,6 +45,10 @@ export default function HomePage() {
   const navigate = useNavigate();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [habits, setHabits] = useState<Habit[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [milestones, setMilestones] = useState<ProjectMilestone[]>([]);
+  const [reminders, setReminders] = useState<Reminder[]>([]);
+  const [studySessions, setStudySessions] = useState<StudySession[]>([]);
   const [aiInsight, setAiInsight] = useState<string>('');
   const [overallScore, setOverallScore] = useState<number>(0);
   const [todaySpent, setTodaySpent] = useState<number>(0);
@@ -56,9 +64,7 @@ export default function HomePage() {
   });
 
   useEffect(() => {
-    getTodayTasks().then(todayTasks => {
-      setTasks(todayTasks);
-    });
+    getTasks().then(setTasks);
 
     getHabits().then(h => setHabits(h));
 
@@ -87,10 +93,29 @@ export default function HomePage() {
         setScores(s);
       }
     });
+
+    void (async () => {
+      const [projectList, reminderList, sessions] = await Promise.all([getProjects(), getReminders(), getStudySessions()]);
+      setProjects(projectList);
+      setReminders(reminderList);
+      setStudySessions(sessions);
+      const projectMilestones = await Promise.all(projectList.filter(project => project.status === 'active').map(project => getProjectMilestones(project.id)));
+      setMilestones(projectMilestones.flat().filter(milestone => milestone.status !== 'completed'));
+    })();
   }, []);
 
-  const todayCompleted = tasks.filter(t => t.status === 'completed').length;
-  const todayTotal = tasks.length;
+  const now = new Date();
+  const todayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  const todayTasks = tasks.filter(task => task.dueDate === todayKey);
+  const dueTasks = tasks.filter(task => task.dueDate && task.dueDate <= todayKey && (task.status === 'todo' || task.status === 'in_progress')).slice(0, 5);
+  const dueTodayReminders = reminders.filter(reminder => reminder.active && (reminder.type === 'daily' || (reminder.type === 'weekly' && reminder.daysOfWeek?.includes(now.getDay())) || ((reminder.type === 'custom' || reminder.type === 'one_time') && reminder.scheduledDate === todayKey)));
+  const todaySessions = studySessions.filter(session => {
+    const date = new Date(session.studiedAt);
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}` === todayKey;
+  });
+  const todayStudyMinutes = todaySessions.reduce((total, session) => total + Number(session.durationMinutes), 0);
+  const todayCompleted = todayTasks.filter(t => t.status === 'completed').length;
+  const todayTotal = todayTasks.length;
   const habitsCompleted = habits.filter(h => h.completedToday).length;
   const habitsTotal = habits.length;
 
@@ -102,7 +127,8 @@ export default function HomePage() {
           : t
       )
     );
-    await toggleTaskStatus(taskId);
+    const saved = await toggleTaskStatus(taskId);
+    if (!saved) setTasks(prev => prev.map(task => task.id === taskId ? { ...task, status: task.status === 'completed' ? 'todo' : 'completed' } : task));
   };
 
   const toggleHabit = async (habitId: string) => {
@@ -170,6 +196,16 @@ export default function HomePage() {
         </div>
       </section>
 
+      <section className="card today-plan-card animate-fade-in-up" aria-labelledby="today-plan-heading">
+        <div className="card-header"><div><h2 className="card-title" id="today-plan-heading">Today at a glance</h2><p className="today-plan-caption">Tasks, milestones, reminders, study, and habits in one place.</p></div><button className="btn btn-secondary sm" onClick={() => navigate('/tasks')}>Open planner</button></div>
+        <div className="today-plan-grid">
+          <div className="today-plan-section"><h3>Due tasks <span>{dueTasks.length}</span></h3>{dueTasks.length ? dueTasks.map(task => <button className="today-plan-row" key={task.id} onClick={() => void toggleTask(task.id)}><span className="today-plan-check">○</span><span>{task.title}</span><small>{task.dueDate === todayKey ? 'Today' : `Overdue · ${task.dueDate}`}</small></button>) : <p className="today-plan-empty">{todayTasks.length ? 'You’ve cleared today’s tasks.' : 'No tasks due today.'}</p>}</div>
+          <div className="today-plan-section"><h3>Project milestones <span>{milestones.length}</span></h3>{milestones.slice(0, 4).map(milestone => <button className="today-plan-row" key={milestone.id} onClick={() => navigate('/projects')}><span className="today-plan-check">◇</span><span>{milestone.title}</span><small>{projects.find(project => project.id === milestone.projectId)?.name || 'Project'}</small></button>)}{milestones.length === 0 && <p className="today-plan-empty">No open milestones in active projects.</p>}</div>
+          <div className="today-plan-section"><h3>Reminders today <span>{dueTodayReminders.length}</span></h3>{dueTodayReminders.slice(0, 4).map(reminder => <div className="today-plan-row static" key={reminder.id}><span className="today-plan-check">◷</span><span>{reminder.title}</span><small>{reminder.time}</small></div>)}{dueTodayReminders.length === 0 && <p className="today-plan-empty">Nothing scheduled for today.</p>}</div>
+          <div className="today-plan-section today-plan-learning"><h3>Learning & habits</h3><div className="today-plan-metrics"><button onClick={() => navigate('/learning')}><strong>{todayStudyMinutes}</strong><span>study minutes</span></button><button onClick={() => navigate('/learning')}><strong>{todaySessions.length}</strong><span>sessions</span></button><button onClick={() => navigate('/habits')}><strong>{habitsCompleted}/{habitsTotal}</strong><span>habits done</span></button></div><button className="today-plan-link" onClick={() => navigate('/learning')}>Continue learning →</button></div>
+        </div>
+      </section>
+
       <div className="home-grid">
         {/* ── Today's Priorities ── */}
         <section className="card animate-fade-in-up stagger-1">
@@ -180,12 +216,12 @@ export default function HomePage() {
             </span>
           </div>
           <div className="task-list">
-            {tasks.length === 0 ? (
+            {todayTasks.length === 0 ? (
               <p style={{ color: 'var(--evo-text-secondary)', padding: 'var(--space-4)', textAlign: 'center' }}>
                 Nothing is planned for today yet. Add a task for today or review your schedule.
               </p>
             ) : (
-              tasks.slice(0, 6).map((task) => (
+              todayTasks.slice(0, 6).map((task) => (
                 <div key={task.id} className="task-item">
                   <div className={`task-priority ${getPriorityClass(task.priority)}`} />
                   <div

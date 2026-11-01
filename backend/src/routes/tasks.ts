@@ -132,6 +132,50 @@ router.post('/', async (req: Request, res: Response) => {
   }
 });
 
+router.patch('/:id', async (req: Request, res: Response) => {
+  try {
+    const currentResult = await query('SELECT * FROM tasks WHERE id = $1 AND user_id = $2', [req.params.id, DEFAULT_USER_ID]);
+    const current = currentResult.rows[0];
+    if (!current) return res.status(404).json({ error: 'Task not found' });
+    const body = req.body;
+    const title = body.title !== undefined ? String(body.title).trim() : current.title;
+    if (!title) return res.status(400).json({ error: 'title is required' });
+    const frequency = body.recurrenceFrequency !== undefined
+      ? (['daily', 'weekly', 'weekdays', 'monthly'].includes(body.recurrenceFrequency) ? body.recurrenceFrequency : null)
+      : current.recurrence_frequency;
+    const projectId = body.projectId !== undefined ? (body.projectId || null) : current.project_id;
+    const goalId = body.goalId !== undefined ? (body.goalId || null) : current.goal_id;
+    const result = await query(`UPDATE tasks SET
+      title = $1, description = $2, due_date = $3::date, due_time = $4, priority = $5,
+      category = $6, estimated_minutes = $7, recurrence_frequency = $8,
+      is_recurring = ($8::text IS NOT NULL),
+      recurrence_series_id = CASE WHEN $8::text IS NULL THEN NULL ELSE COALESCE(recurrence_series_id, id) END,
+      project_id = $9, goal_id = $10, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $11 AND user_id = $12
+        AND ($9::uuid IS NULL OR EXISTS (SELECT 1 FROM projects WHERE id = $9 AND user_id = $12))
+        AND ($10::uuid IS NULL OR EXISTS (SELECT 1 FROM goals WHERE id = $10 AND user_id = $12))
+      RETURNING id, user_id as "userId", title, description, to_char(due_date, 'YYYY-MM-DD') as "dueDate",
+        due_time::text as "dueTime", priority, status, goal_id as "goalId", project_id as "projectId",
+        category, estimated_minutes as "estimatedMinutes", is_recurring as "isRecurring",
+        recurrence_frequency as "recurrenceFrequency", is_ai_generated as "isAiGenerated",
+        created_at as "createdAt", updated_at as "updatedAt"`, [
+      title,
+      body.description !== undefined ? (String(body.description).trim() || null) : current.description,
+      body.dueDate !== undefined ? (body.dueDate || null) : current.due_date,
+      body.dueTime !== undefined ? (body.dueTime || null) : current.due_time,
+      body.priority ?? current.priority,
+      body.category !== undefined ? (String(body.category).trim() || 'General') : current.category,
+      body.estimatedMinutes !== undefined ? (Number(body.estimatedMinutes) || 30) : current.estimated_minutes,
+      frequency, projectId, goalId, req.params.id, DEFAULT_USER_ID,
+    ]);
+    if (!result.rows.length) return res.status(404).json({ error: 'Linked project or goal not found' });
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error updating task:', error);
+    res.status(500).json({ error: 'Could not update task' });
+  }
+});
+
 // POST /api/tasks/:id/toggle
 router.post('/:id/toggle', async (req: Request, res: Response) => {
   try {

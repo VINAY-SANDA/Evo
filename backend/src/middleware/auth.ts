@@ -157,6 +157,7 @@ function isAllowedMcpApiCall(method: string, originalUrl: string): boolean {
     (method === 'DELETE' && (
       /^\/api\/tasks\/[0-9a-f-]+$/i.test(pathname) ||
       /^\/api\/goals\/[0-9a-f-]+$/i.test(pathname) ||
+      /^\/api\/learning\/subjects\/[0-9a-f-]+$/i.test(pathname) ||
       /^\/api\/habits\/[0-9a-f-]+$/i.test(pathname) ||
       /^\/api\/finance\/(expenses|income|savings)\/[0-9a-f-]+$/i.test(pathname) ||
       /^\/api\/finance\/budgets\/[0-9a-f-]+$/i.test(pathname) ||
@@ -168,13 +169,25 @@ function isAllowedMcpApiCall(method: string, originalUrl: string): boolean {
     )) ||
     (method === 'PATCH' && (
       /^\/api\/habits\/[0-9a-f-]+\/(archive|restore)$/i.test(pathname) ||
+      /^\/api\/habits\/[0-9a-f-]+$/i.test(pathname) ||
+      /^\/api\/goals\/[0-9a-f-]+$/i.test(pathname) ||
+      /^\/api\/goals\/milestones\/[0-9a-f-]+$/i.test(pathname) ||
+      /^\/api\/learning\/subjects\/[0-9a-f-]+$/i.test(pathname) ||
       /^\/api\/learning\/topics\/[0-9a-f-]+$/i.test(pathname) ||
+      /^\/api\/learning\/study-sessions\/[0-9a-f-]+$/i.test(pathname) ||
+      /^\/api\/finance\/(expenses|income|savings)\/[0-9a-f-]+$/i.test(pathname) ||
+      /^\/api\/finance\/savings\/[0-9a-f-]+\/contributions\/[0-9a-f-]+$/i.test(pathname) ||
+      /^\/api\/memories\/[0-9a-f-]+$/i.test(pathname) ||
       /^\/api\/library\/(diary|movies)\/[0-9a-f-]+$/i.test(pathname)
+      || /^\/api\/tasks\/[0-9a-f-]+$/i.test(pathname)
     )) ||
     (method === 'PATCH' && (
       /^\/api\/reminders\/[0-9a-f-]+$/i.test(pathname) ||
       /^\/api\/notifications\/(read-all|[0-9a-f-]+\/read)$/i.test(pathname) ||
       /^\/api\/projects\/milestones\/[0-9a-f-]+\/toggle$/i.test(pathname)
+      || /^\/api\/projects\/milestones\/[0-9a-f-]+$/i.test(pathname)
+      || /^\/api\/goals\/milestones\/[0-9a-f-]+\/toggle$/i.test(pathname)
+      || /^\/api\/goals\/milestones\/[0-9a-f-]+$/i.test(pathname)
       || /^\/api\/projects\/[0-9a-f-]+$/i.test(pathname)
     )) ||
     (method === 'DELETE' && (
@@ -184,7 +197,10 @@ function isAllowedMcpApiCall(method: string, originalUrl: string): boolean {
     (method === 'GET' && /^\/api\/learning\/subjects\/[0-9a-f-]+\/topics$/i.test(pathname)) ||
     (method === 'GET' && /^\/api\/projects\/[0-9a-f-]+\/milestones$/i.test(pathname)) ||
     (method === 'DELETE' && /^\/api\/projects\/milestones\/[0-9a-f-]+$/i.test(pathname)) ||
+    (method === 'DELETE' && /^\/api\/goals\/milestones\/[0-9a-f-]+$/i.test(pathname)) ||
+    (method === 'GET' && /^\/api\/goals\/[0-9a-f-]+\/milestones$/i.test(pathname)) ||
     (method === 'POST' && /^\/api\/projects\/[0-9a-f-]+\/milestones$/i.test(pathname)) ||
+    (method === 'POST' && /^\/api\/goals\/[0-9a-f-]+\/milestones$/i.test(pathname)) ||
     (method === 'POST' && (
       /^\/api\/learning\/subjects\/[0-9a-f-]+\/topics$/i.test(pathname) ||
       /^\/api\/finance\/savings\/[0-9a-f-]+\/contributions$/i.test(pathname) ||

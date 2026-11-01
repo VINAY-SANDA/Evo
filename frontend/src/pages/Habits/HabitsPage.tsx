@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import type { Habit } from '../../types';
-import { archiveHabit, createHabit, deleteHabit, getHabits, getHabitWeeklySummary, restoreHabit, toggleHabitComplete } from '../../services/api';
+import { archiveHabit, createHabit, updateHabit, deleteHabit, getHabits, getHabitWeeklySummary, restoreHabit, toggleHabitComplete } from '../../services/api';
 import './HabitsPage.css';
 
 const presetColors = ['#0066FF', '#0052CC', '#4D94FF', '#00C853', '#35D977', '#E53935', '#808080'];
@@ -8,6 +8,7 @@ const presetColors = ['#0066FF', '#0052CC', '#4D94FF', '#00C853', '#35D977', '#E
 export default function HabitsPage() {
   const [habits, setHabits] = useState<Habit[]>([]);
   const [showModal, setShowModal] = useState(false);
+  const [editingHabitId, setEditingHabitId] = useState<string | null>(null);
   const [showArchived, setShowArchived] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [weeklySummary, setWeeklySummary] = useState<{ habits: Array<{ id: string; name: string; icon: string; currentStreak: number; completedDays: number }>; completed: number; expected: number; completionRate: number }>({ habits: [], completed: 0, expected: 0, completionRate: 0 });
@@ -90,7 +91,7 @@ export default function HabitsPage() {
     e.preventDefault();
     if (!formData.name.trim()) return;
 
-    const newHabit = await createHabit({
+    const values = {
       name: formData.name.trim(),
       description: formData.description.trim(),
       icon: formData.icon.trim() || '🎯',
@@ -102,13 +103,17 @@ export default function HabitsPage() {
       currentStreak: 0,
       longestStreak: 0,
       completedToday: false,
-    });
+    };
+    const newHabit = editingHabitId ? await updateHabit(editingHabitId, values) : await createHabit(values);
 
     if (newHabit) {
-      setHabits(prev => [newHabit, ...prev]);
-      showToast(`✓ Habit "${newHabit.name}" activated`);
+      setHabits(prev => editingHabitId ? prev.map(habit => habit.id === editingHabitId ? { ...habit, ...newHabit } : habit) : [newHabit, ...prev]);
+      showToast(editingHabitId ? `Habit "${newHabit.name}" updated.` : `✓ Habit "${newHabit.name}" activated`);
+    } else {
+      showToast('Habit could not be saved. Please try again.');
     }
     setShowModal(false);
+    setEditingHabitId(null);
     setFormData({
       name: '',
       description: '',
@@ -119,6 +124,12 @@ export default function HabitsPage() {
       target: 1,
       unit: 'session',
     });
+  };
+
+  const openEditHabit = (habit: Habit) => {
+    setEditingHabitId(habit.id);
+    setFormData({ name: habit.name, description: habit.description || '', icon: habit.icon || '🎯', color: habit.color || '#0066FF', frequency: habit.frequency || 'daily', scheduleDays: habit.scheduleDays || [], target: habit.target || 1, unit: habit.unit || 'times' });
+    setShowModal(true);
   };
 
   // Generate last 7 days for heatmap preview
@@ -208,6 +219,7 @@ export default function HabitsPage() {
                 <span className="habit-card-streak-label">day streak</span>
               </div>
               <div className="habit-card-actions">
+                <button className="btn btn-secondary sm" onClick={() => openEditHabit(habit)}>Edit</button>
                 <button
                   className="habit-archive-button"
                   onClick={() => void setArchived(habit, habit.active)}
@@ -274,8 +286,8 @@ export default function HabitsPage() {
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
-              <h2 className="modal-title">Create New Habit</h2>
-              <button className="modal-close" onClick={() => setShowModal(false)}>✕</button>
+              <h2 className="modal-title">{editingHabitId ? 'Edit Habit' : 'Create New Habit'}</h2>
+              <button className="modal-close" onClick={() => { setShowModal(false); setEditingHabitId(null); }}>✕</button>
             </div>
             <form onSubmit={handleCreateHabit}>
               <div className="modal-body">
@@ -366,8 +378,8 @@ export default function HabitsPage() {
                 </div>
               </div>
               <div className="modal-footer">
-                <button type="button" className="btn btn-secondary" onClick={() => setShowModal(false)}>Cancel</button>
-                <button type="submit" className="btn btn-primary">Create Habit</button>
+                <button type="button" className="btn btn-secondary" onClick={() => { setShowModal(false); setEditingHabitId(null); }}>Cancel</button>
+                <button type="submit" className="btn btn-primary">{editingHabitId ? 'Save changes' : 'Create Habit'}</button>
               </div>
             </form>
           </div>

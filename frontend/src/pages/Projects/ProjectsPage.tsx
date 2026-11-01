@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import type { Project, ProjectMilestone, Priority, Task } from '../../types';
-import { getProjects, createProject, createProjectMilestone, getProjectMilestones, toggleProjectMilestone, getTasks, updateProject, deleteProject, deleteProjectMilestone } from '../../services/api';
+import { getProjects, createProject, createProjectMilestone, getProjectMilestones, toggleProjectMilestone, updateProjectMilestone, getTasks, updateProject, deleteProject, deleteProjectMilestone } from '../../services/api';
 import './ProjectsPage.css';
 
 export default function ProjectsPage() {
@@ -130,6 +130,15 @@ export default function ProjectsPage() {
       const progress = remaining.length ? Math.round(remaining.filter(item => item.status === 'completed').length * 100 / remaining.length) : 0;
       setProjects(list => list.map(project => project.id === currentProject.id ? { ...project, progress } : project));
     }
+  };
+
+  const editMilestone = async (milestone: ProjectMilestone) => {
+    const title = window.prompt('Edit milestone', milestone.title);
+    if (title === null || !title.trim()) return;
+    const updated = await updateProjectMilestone(milestone.id, { title: title.trim() });
+    if (!updated) { showToast('Milestone could not be updated. Please try again.'); return; }
+    setMilestones(items => items.map(item => item.id === milestone.id ? updated : item));
+    showToast('Milestone updated.');
   };
 
   const handleAddMilestone = async (e: React.FormEvent) => {
@@ -279,6 +288,7 @@ export default function ProjectsPage() {
                           {isDone ? `Completed on ${m.completedAt || 'Recently'}` : 'Pending execution'}
                         </span>
                       </div>
+                      <button className="btn btn-secondary sm" onClick={() => { void editMilestone(m); }}>Edit</button>
                       <button className="btn btn-ghost sm" onClick={() => { void removeMilestone(m); }} aria-label={`Delete milestone ${m.title}`}>×</button>
                     </div>
                   );

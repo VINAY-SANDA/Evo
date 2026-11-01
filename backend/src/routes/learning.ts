@@ -257,6 +257,21 @@ router.post('/subjects', async (req: Request, res: Response) => {
   }
 });
 
+router.patch('/subjects/:id', async (req: Request, res: Response) => {
+  try {
+    const { name, icon, color } = req.body;
+    const nextName = name === undefined ? null : String(name).trim();
+    if (nextName !== null && (!nextName || nextName.length > 255)) return res.status(400).json({ error: 'name must contain 1 to 255 characters' });
+    const result = await query(`UPDATE learning_subjects SET name = COALESCE($1, name), icon = COALESCE($2, icon), color = COALESCE($3, color)
+      WHERE id = $4 AND user_id = $5 RETURNING *`, [nextName, typeof icon === 'string' ? icon.slice(0, 32) : null, typeof color === 'string' ? color.slice(0, 32) : null, req.params.id, DEFAULT_USER_ID]);
+    if (!result.rows.length) return res.status(404).json({ error: 'Learning track not found' });
+    res.json(mapSubject(result.rows[0]));
+  } catch (error) {
+    console.error('Error updating learning track:', error);
+    res.status(500).json({ error: 'Failed to update learning track' });
+  }
+});
+
 // POST /api/learning/subjects/:id/topics
 router.post('/subjects/:id/topics', async (req: Request, res: Response) => {
   const client = await pool.connect();
@@ -399,6 +414,28 @@ router.post('/study-sessions', async (req: Request, res: Response) => {
   } finally {
     client.release();
   }
+});
+
+router.patch('/study-sessions/:id', async (req: Request, res: Response) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const currentResult = await client.query(`SELECT ss.* FROM learning_study_sessions ss
+      JOIN learning_subjects s ON s.id = ss.subject_id WHERE ss.id = $1 AND ss.user_id = $2 AND s.user_id = $2 FOR UPDATE`, [req.params.id, DEFAULT_USER_ID]);
+    const current = currentResult.rows[0];
+    if (!current) { await client.query('ROLLBACK'); return res.status(404).json({ error: 'Study session not found' }); }
+    const duration = req.body.durationMinutes === undefined ? Number(current.duration_minutes) : Math.floor(Number(req.body.durationMinutes));
+    if (!Number.isFinite(duration) || duration < 1 || duration > 1440) { await client.query('ROLLBACK'); return res.status(400).json({ error: 'durationMinutes must be from 1 to 1440' }); }
+    const delta = duration - Number(current.duration_minutes);
+    const result = await client.query(`UPDATE learning_study_sessions SET duration_minutes = $1, note = $2
+      WHERE id = $3 AND user_id = $4 RETURNING id, subject_id as "subjectId", topic_id as "topicId", duration_minutes as "durationMinutes", note, studied_at as "studiedAt"`,
+    [duration, req.body.note === undefined ? current.note : String(req.body.note || '').trim(), req.params.id, DEFAULT_USER_ID]);
+    await client.query('UPDATE learning_subjects SET total_time_minutes = GREATEST(0, total_time_minutes + $1) WHERE id = $2 AND user_id = $3', [delta, current.subject_id, DEFAULT_USER_ID]);
+    if (current.topic_id) await client.query('UPDATE learning_topics SET time_spent_minutes = GREATEST(0, time_spent_minutes + $1) WHERE id = $2', [delta, current.topic_id]);
+    await client.query('COMMIT');
+    res.json(result.rows[0]);
+  } catch (err: any) { await client.query('ROLLBACK').catch(() => undefined); res.status(500).json({ error: err.message }); }
+  finally { client.release(); }
 });
 
 export default router;

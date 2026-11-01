@@ -71,6 +71,11 @@ export function createEvoMcpServer(customApiUrl?: string): Server {
 server.setRequestHandler(ListToolsRequestSchema, async () => {
   return {
     tools: [
+      { name: 'evo_list_goal_milestones', description: 'List milestones for a strategic goal.', inputSchema: { type: 'object', properties: { goalId: { type: 'string' } }, required: ['goalId'] } },
+      { name: 'evo_add_goal_milestone', description: 'Add a milestone to a strategic goal.', inputSchema: { type: 'object', properties: { goalId: { type: 'string' }, title: { type: 'string' } }, required: ['goalId', 'title'] } },
+      { name: 'evo_toggle_goal_milestone', description: 'Toggle a goal milestone completion status.', inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] } },
+      { name: 'evo_update_goal_milestone', description: 'Edit a goal milestone title.', inputSchema: { type: 'object', properties: { id: { type: 'string' }, title: { type: 'string' } }, required: ['id', 'title'] } },
+      { name: 'evo_delete_goal_milestone', description: 'Permanently delete a goal milestone. Only call after the user explicitly confirms deletion.', inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] } },
       {
         name: 'evo_get_dashboard',
         description: 'Get an executive dashboard overview of EVO: life scores, tasks done today, streaks, and current AI strategic directive.',
@@ -123,6 +128,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           required: ['id'],
         },
       },
+      { name: 'evo_update_task', description: 'Edit a saved task. Supply its ID and any task fields to change.', inputSchema: { type: 'object', properties: { id: { type: 'string' }, title: { type: 'string' }, description: { type: 'string' }, dueDate: { type: 'string' }, dueTime: { type: 'string' }, priority: { type: 'string', enum: ['urgent', 'high', 'medium', 'low'] }, category: { type: 'string' }, estimatedMinutes: { type: 'number' }, recurrenceFrequency: { type: 'string', enum: ['daily', 'weekdays', 'weekly', 'monthly'] }, projectId: { type: 'string' }, goalId: { type: 'string' } }, required: ['id'] } },
       {
         name: 'evo_list_goals',
         description: 'List all multi-year strategic goals, their percentage progress, and deadlines.',
@@ -147,6 +153,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           required: ['title'],
         },
       },
+      { name: 'evo_update_goal', description: 'Edit a saved goal.', inputSchema: { type: 'object', properties: { id: { type: 'string' }, title: { type: 'string' }, category: { type: 'string', enum: ['career', 'education', 'finance', 'health', 'business', 'personal', 'project'] }, targetValue: { type: 'number' }, currentValue: { type: 'number' }, unit: { type: 'string' }, deadline: { type: 'string' }, priority: { type: 'string', enum: ['urgent', 'high', 'medium', 'low'] }, status: { type: 'string', enum: ['active', 'completed', 'paused', 'cancelled'] } }, required: ['id'] } },
       {
         name: 'evo_list_habits',
         description: 'List tracked daily habits, streak lengths, and whether they are completed today.',
@@ -184,6 +191,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           required: ['id'],
         },
       },
+      { name: 'evo_update_habit', description: 'Edit a saved habit name, schedule, target, or appearance.', inputSchema: { type: 'object', properties: { id: { type: 'string' }, name: { type: 'string' }, description: { type: 'string' }, icon: { type: 'string' }, color: { type: 'string' }, frequency: { type: 'string', enum: ['daily', 'weekly', 'custom'] }, scheduleDays: { type: 'array', items: { type: 'number', minimum: 0, maximum: 6 } }, target: { type: 'number' }, unit: { type: 'string' } }, required: ['id'] } },
       { name: 'evo_get_habit_weekly_summary', description: 'Get seven-day habit consistency, completion counts, and streaks.', inputSchema: { type: 'object', properties: {} } },
       {
         name: 'evo_delete_habit',
@@ -222,6 +230,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           required: ['amount', 'category', 'description'],
         },
       },
+      { name: 'evo_update_expense', description: 'Edit a saved expense.', inputSchema: { type: 'object', properties: { id: { type: 'string' }, amount: { type: 'number' }, category: { type: 'string', enum: ['food', 'travel', 'shopping', 'education', 'bills', 'entertainment', 'health', 'other'] }, description: { type: 'string' }, date: { type: 'string' } }, required: ['id'] } },
       {
         name: 'evo_list_income',
         description: 'List income entries in EVO.',
@@ -237,6 +246,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           date: { type: 'string', description: 'Date in YYYY-MM-DD' },
         }, required: ['amount'] },
       },
+      { name: 'evo_update_income', description: 'Edit a saved income entry.', inputSchema: { type: 'object', properties: { id: { type: 'string' }, amount: { type: 'number' }, source: { type: 'string' }, category: { type: 'string' }, date: { type: 'string' } }, required: ['id'] } },
       {
         name: 'evo_delete_income',
         description: 'Delete an income entry by ID. Only call after the user explicitly confirms this deletion.',
@@ -267,6 +277,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           deadline: { type: 'string', description: 'Deadline in YYYY-MM-DD' },
         }, required: ['title', 'targetAmount'] },
       },
+      { name: 'evo_update_savings_goal', description: 'Edit a saved savings goal.', inputSchema: { type: 'object', properties: { id: { type: 'string' }, title: { type: 'string' }, targetAmount: { type: 'number' }, currentAmount: { type: 'number' }, deadline: { type: 'string' } }, required: ['id'] } },
       {
         name: 'evo_delete_savings_goal',
         description: 'Delete a savings goal by ID. Only call after the user explicitly confirms this deletion.',
@@ -286,6 +297,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           color: { type: 'string', description: 'Optional hex color' },
         }, required: ['name'] },
       },
+      { name: 'evo_update_learning_track', description: 'Edit a saved learning track name, icon, or color.', inputSchema: { type: 'object', properties: { id: { type: 'string' }, name: { type: 'string' }, icon: { type: 'string' }, color: { type: 'string' } }, required: ['id'] } },
       {
         name: 'evo_delete_learning_track',
         description: 'Delete a learning track by ID. Only call after the user explicitly confirms this deletion.',
@@ -338,15 +350,18 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       { name: 'evo_set_budget', description: 'Set or update a monthly category spending limit.', inputSchema: { type: 'object', properties: { category: { type: 'string' }, month: { type: 'string', description: 'YYYY-MM' }, limitAmount: { type: 'number' }, alertPercent: { type: 'number' } }, required: ['category', 'month', 'limitAmount'] } },
       { name: 'evo_delete_budget', description: 'Delete a monthly budget by ID. Only call after the user explicitly confirms this deletion.', inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] } },
       { name: 'evo_add_savings_contribution', description: 'Record money added to a savings goal.', inputSchema: { type: 'object', properties: { goalId: { type: 'string' }, amount: { type: 'number' }, date: { type: 'string' }, note: { type: 'string' } }, required: ['goalId', 'amount'] } },
+      { name: 'evo_update_savings_contribution', description: 'Edit a saved savings contribution.', inputSchema: { type: 'object', properties: { goalId: { type: 'string' }, id: { type: 'string' }, amount: { type: 'number' }, date: { type: 'string' }, note: { type: 'string' } }, required: ['goalId', 'id'] } },
       { name: 'evo_list_savings_contributions', description: 'List contributions recorded for a savings goal.', inputSchema: { type: 'object', properties: { goalId: { type: 'string' } }, required: ['goalId'] } },
       { name: 'evo_log_study_session', description: 'Log study time for a learning track or topic.', inputSchema: { type: 'object', properties: { subjectId: { type: 'string' }, topicId: { type: 'string' }, durationMinutes: { type: 'number' }, note: { type: 'string' } }, required: ['subjectId', 'durationMinutes'] } },
       { name: 'evo_list_study_sessions', description: 'List recent study sessions, optionally for one learning track.', inputSchema: { type: 'object', properties: { subjectId: { type: 'string' } } } },
+      { name: 'evo_update_study_session', description: 'Edit a saved study session duration or note.', inputSchema: { type: 'object', properties: { id: { type: 'string' }, durationMinutes: { type: 'number', minimum: 1, maximum: 1440 }, note: { type: 'string' } }, required: ['id'] } },
       { name: 'evo_list_projects', description: 'List projects and their current status.', inputSchema: { type: 'object', properties: {} } },
       { name: 'evo_create_project', description: 'Create a project.', inputSchema: { type: 'object', properties: { name: { type: 'string' }, description: { type: 'string' }, priority: { type: 'string', enum: ['urgent', 'high', 'medium', 'low'] }, deadline: { type: 'string' } }, required: ['name'] } },
       { name: 'evo_update_project', description: 'Update the name, description, priority, status, or deadline of a project.', inputSchema: { type: 'object', properties: { id: { type: 'string' }, name: { type: 'string' }, description: { type: 'string' }, priority: { type: 'string', enum: ['urgent', 'high', 'medium', 'low'] }, status: { type: 'string', enum: ['active', 'completed', 'paused', 'cancelled'] }, deadline: { type: 'string', description: 'YYYY-MM-DD' } }, required: ['id'] } },
       { name: 'evo_delete_project', description: 'Permanently delete a project and its milestones. Only call after the user explicitly confirms deletion.', inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] } },
       { name: 'evo_list_project_milestones', description: 'List milestones for a project.', inputSchema: { type: 'object', properties: { projectId: { type: 'string' } }, required: ['projectId'] } },
       { name: 'evo_add_project_milestone', description: 'Add a milestone to a project.', inputSchema: { type: 'object', properties: { projectId: { type: 'string' }, title: { type: 'string' }, orderIndex: { type: 'number' } }, required: ['projectId', 'title'] } },
+      { name: 'evo_update_project_milestone', description: 'Edit a project milestone title.', inputSchema: { type: 'object', properties: { id: { type: 'string' }, title: { type: 'string' } }, required: ['id', 'title'] } },
       { name: 'evo_toggle_project_milestone', description: 'Toggle a project milestone between pending and completed.', inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] } },
       { name: 'evo_delete_project_milestone', description: 'Delete a project milestone. Only call after the user explicitly confirms deletion.', inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] } },
       { name: 'evo_list_reminders', description: 'List reminders.', inputSchema: { type: 'object', properties: {} } },
@@ -360,9 +375,11 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       { name: 'evo_get_progress_scores', description: 'Get progress scores by life area.', inputSchema: { type: 'object', properties: {} } },
       { name: 'evo_list_diary_entries', description: 'List personal diary entries, newest first.', inputSchema: { type: 'object', properties: {} } },
       { name: 'evo_add_diary_entry', description: 'Save a personal diary entry.', inputSchema: { type: 'object', properties: { title: { type: 'string' }, body: { type: 'string' }, date: { type: 'string', description: 'YYYY-MM-DD; defaults to today' } }, required: ['title'] } },
+      { name: 'evo_update_diary_entry', description: 'Edit a saved diary entry.', inputSchema: { type: 'object', properties: { id: { type: 'string' }, title: { type: 'string' }, body: { type: 'string' }, date: { type: 'string' } }, required: ['id'] } },
       { name: 'evo_delete_diary_entry', description: 'Permanently delete a diary entry. Only call after the user explicitly confirms deletion.', inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] } },
       { name: 'evo_list_movie_reviews', description: 'List watched movies and personal ratings/reviews.', inputSchema: { type: 'object', properties: {} } },
       { name: 'evo_add_movie_review', description: 'Save a movie title, optional release year, 1–5 rating, review, and watch date.', inputSchema: { type: 'object', properties: { title: { type: 'string' }, year: { type: 'integer', minimum: 1888, maximum: 2100 }, rating: { type: 'integer', minimum: 1, maximum: 5 }, review: { type: 'string' }, watchedAt: { type: 'string', description: 'YYYY-MM-DD; defaults to today' } }, required: ['title', 'rating'] } },
+      { name: 'evo_update_movie_review', description: 'Edit a saved movie review.', inputSchema: { type: 'object', properties: { id: { type: 'string' }, title: { type: 'string' }, year: { type: 'number' }, rating: { type: 'number' }, review: { type: 'string' }, watchedAt: { type: 'string' } }, required: ['id'] } },
       { name: 'evo_delete_movie_review', description: 'Permanently delete a movie review. Only call after the user explicitly confirms deletion.', inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] } },
       { name: 'evo_list_notifications', description: 'List notifications.', inputSchema: { type: 'object', properties: {} } },
       { name: 'evo_mark_notification_read', description: 'Mark a notification as read.', inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] } },
@@ -389,6 +406,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           required: ['text'],
         },
       },
+      { name: 'evo_update_memory', description: 'Edit a saved memory.', inputSchema: { type: 'object', properties: { id: { type: 'string' }, text: { type: 'string' }, type: { type: 'string', enum: ['preference', 'decision', 'fact', 'lesson'] }, importance: { type: 'number' } }, required: ['id'] } },
       {
         name: 'evo_consult_ai_coach',
         description: 'Ask EVO AI strategic coach for an execution protocol, weekly planning, or risk analysis.',
@@ -459,6 +477,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         };
       }
 
+      case 'evo_update_task': {
+        const { id, ...body } = args;
+        const updated = await fetchEvo<any>(`/tasks/${encodeURIComponent(String(id))}`, { method: 'PATCH', body: JSON.stringify(body) });
+        return { content: [{ type: 'text', text: `Updated task "${updated.title}".` }] };
+      }
+
       case 'evo_delete_task': {
         await fetchEvo<any>(`/tasks/${encodeURIComponent(String(args.id))}`, { method: 'DELETE' });
         return { content: [{ type: 'text', text: `Deleted task ${args.id}.` }] };
@@ -470,6 +494,27 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         return {
           content: [{ type: 'text', text: JSON.stringify(goals, null, 2) }],
         };
+      }
+
+      case 'evo_list_goal_milestones':
+        return { content: [{ type: 'text', text: JSON.stringify(await fetchEvo<any>(`/goals/${encodeURIComponent(String(args.goalId))}/milestones`), null, 2) }] };
+      case 'evo_add_goal_milestone': {
+        const { goalId, ...body } = args;
+        const created = await fetchEvo<any>(`/goals/${encodeURIComponent(String(goalId))}/milestones`, { method: 'POST', body: JSON.stringify(body) });
+        return { content: [{ type: 'text', text: `Added goal milestone "${created.title}".` }] };
+      }
+      case 'evo_toggle_goal_milestone': {
+        const updated = await fetchEvo<any>(`/goals/milestones/${encodeURIComponent(String(args.id))}/toggle`, { method: 'PATCH' });
+        return { content: [{ type: 'text', text: `Goal milestone "${updated.title}" is ${updated.status}.` }] };
+      }
+      case 'evo_update_goal_milestone': {
+        const { id, ...body } = args;
+        const updated = await fetchEvo<any>(`/goals/milestones/${encodeURIComponent(String(id))}`, { method: 'PATCH', body: JSON.stringify(body) });
+        return { content: [{ type: 'text', text: `Updated goal milestone "${updated.title}".` }] };
+      }
+      case 'evo_delete_goal_milestone': {
+        await fetchEvo<void>(`/goals/milestones/${encodeURIComponent(String(args.id))}`, { method: 'DELETE' });
+        return { content: [{ type: 'text', text: `Deleted goal milestone ${args.id}.` }] };
       }
 
       case 'evo_create_goal': {
@@ -490,6 +535,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         return {
           content: [{ type: 'text', text: `✓ Created goal: "${created.title}" (${created.category})` }],
         };
+      }
+
+      case 'evo_update_goal': {
+        const { id, ...body } = args;
+        const updated = await fetchEvo<any>(`/goals/${encodeURIComponent(String(id))}`, { method: 'PATCH', body: JSON.stringify(body) });
+        return { content: [{ type: 'text', text: `Updated goal "${updated.title}".` }] };
       }
 
       case 'evo_delete_goal': {
@@ -523,6 +574,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const created = await fetchEvo<any>(`/finance/savings/${encodeURIComponent(String(goalId))}/contributions`, { method: 'POST', body: JSON.stringify(body) });
         return { content: [{ type: 'text', text: `Added ₹${created.amount} to ${created.title}; saved so far: ₹${created.currentAmount}.` }] };
       }
+      case 'evo_update_savings_contribution': {
+        const { goalId, id, ...body } = args;
+        const updated = await fetchEvo<any>(`/finance/savings/${encodeURIComponent(String(goalId))}/contributions/${encodeURIComponent(String(id))}`, { method: 'PATCH', body: JSON.stringify(body) });
+        return { content: [{ type: 'text', text: `Updated contribution to ₹${updated.amount}; savings total is now ₹${updated.currentAmount}.` }] };
+      }
       case 'evo_list_savings_contributions': {
         return { content: [{ type: 'text', text: JSON.stringify(await fetchEvo<any>(`/finance/savings/${encodeURIComponent(String(args.goalId))}/contributions`), null, 2) }] };
       }
@@ -533,6 +589,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case 'evo_list_study_sessions': {
         const suffix = args.subjectId ? `?subjectId=${encodeURIComponent(String(args.subjectId))}` : '';
         return { content: [{ type: 'text', text: JSON.stringify(await fetchEvo<any>(`/learning/study-sessions${suffix}`), null, 2) }] };
+      }
+      case 'evo_update_study_session': {
+        const { id, ...body } = args;
+        const updated = await fetchEvo<any>(`/learning/study-sessions/${encodeURIComponent(String(id))}`, { method: 'PATCH', body: JSON.stringify(body) });
+        return { content: [{ type: 'text', text: `Updated study session to ${updated.durationMinutes} minutes.` }] };
       }
       case 'evo_list_projects':
         return { content: [{ type: 'text', text: JSON.stringify(await fetchEvo<any>('/projects'), null, 2) }] };
@@ -555,6 +616,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const { projectId, ...body } = args;
         const created = await fetchEvo<any>(`/projects/${encodeURIComponent(String(projectId))}/milestones`, { method: 'POST', body: JSON.stringify(body) });
         return { content: [{ type: 'text', text: `Added project milestone "${created.title}".` }] };
+      }
+      case 'evo_update_project_milestone': {
+        const { id, ...body } = args;
+        const updated = await fetchEvo<any>(`/projects/milestones/${encodeURIComponent(String(id))}`, { method: 'PATCH', body: JSON.stringify(body) });
+        return { content: [{ type: 'text', text: `Updated project milestone "${updated.title}".` }] };
       }
       case 'evo_toggle_project_milestone': {
         const updated = await fetchEvo<any>(`/projects/milestones/${encodeURIComponent(String(args.id))}/toggle`, { method: 'PATCH' });
@@ -601,6 +667,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const created = await fetchEvo<any>('/library/diary', { method: 'POST', body: JSON.stringify(args) });
         return { content: [{ type: 'text', text: `Saved diary entry "${created.title}" (${created.date}).` }] };
       }
+      case 'evo_update_diary_entry': {
+        const { id, ...body } = args;
+        const updated = await fetchEvo<any>(`/library/diary/${encodeURIComponent(String(id))}`, { method: 'PATCH', body: JSON.stringify(body) });
+        return { content: [{ type: 'text', text: `Updated diary entry "${updated.title}".` }] };
+      }
       case 'evo_delete_diary_entry': {
         await fetchEvo<void>(`/library/diary/${encodeURIComponent(String(args.id))}`, { method: 'DELETE' });
         return { content: [{ type: 'text', text: `Deleted diary entry ${args.id}.` }] };
@@ -610,6 +681,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case 'evo_add_movie_review': {
         const created = await fetchEvo<any>('/library/movies', { method: 'POST', body: JSON.stringify(args) });
         return { content: [{ type: 'text', text: `Saved ${created.rating}/5 review for "${created.title}".` }] };
+      }
+      case 'evo_update_movie_review': {
+        const { id, ...body } = args;
+        const updated = await fetchEvo<any>(`/library/movies/${encodeURIComponent(String(id))}`, { method: 'PATCH', body: JSON.stringify(body) });
+        return { content: [{ type: 'text', text: `Updated movie review "${updated.title}".` }] };
       }
       case 'evo_delete_movie_review': {
         await fetchEvo<void>(`/library/movies/${encodeURIComponent(String(args.id))}`, { method: 'DELETE' });
@@ -668,6 +744,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         };
       }
 
+      case 'evo_update_habit': {
+        const { id, ...body } = args;
+        const updated = await fetchEvo<any>(`/habits/${encodeURIComponent(String(id))}`, { method: 'PATCH', body: JSON.stringify(body) });
+        return { content: [{ type: 'text', text: `Updated habit "${updated.name}".` }] };
+      }
+
       case 'evo_get_habit_weekly_summary': {
         return { content: [{ type: 'text', text: JSON.stringify(await fetchEvo<any>('/habits/summary/weekly'), null, 2) }] };
       }
@@ -708,6 +790,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         };
       }
 
+      case 'evo_update_expense': {
+        const { id, ...body } = args;
+        const updated = await fetchEvo<any>(`/finance/expenses/${encodeURIComponent(String(id))}`, { method: 'PATCH', body: JSON.stringify(body) });
+        return { content: [{ type: 'text', text: `Updated expense "${updated.description}".` }] };
+      }
+
       case 'evo_list_expenses': {
         return { content: [{ type: 'text', text: JSON.stringify(await fetchEvo<any>('/finance/expenses'), null, 2) }] };
       }
@@ -728,6 +816,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         return { content: [{ type: 'text', text: `Recorded ₹${created.amount} income from ${created.source}.` }] };
       }
 
+      case 'evo_update_income': {
+        const { id, ...body } = args;
+        const updated = await fetchEvo<any>(`/finance/income/${encodeURIComponent(String(id))}`, { method: 'PATCH', body: JSON.stringify(body) });
+        return { content: [{ type: 'text', text: `Updated income "${updated.source}".` }] };
+      }
+
       case 'evo_delete_income': {
         await fetchEvo<any>(`/finance/income/${encodeURIComponent(String(args.id))}`, { method: 'DELETE' });
         return { content: [{ type: 'text', text: `Deleted income ${args.id}.` }] };
@@ -744,6 +838,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         return { content: [{ type: 'text', text: `Created savings goal "${created.title}" with target ₹${created.targetAmount} (ID: ${created.id}).` }] };
       }
 
+      case 'evo_update_savings_goal': {
+        const { id, ...body } = args;
+        const updated = await fetchEvo<any>(`/finance/savings/${encodeURIComponent(String(id))}`, { method: 'PATCH', body: JSON.stringify(body) });
+        return { content: [{ type: 'text', text: `Updated savings goal "${updated.title}".` }] };
+      }
+
       case 'evo_delete_savings_goal': {
         await fetchEvo<any>(`/finance/savings/${encodeURIComponent(String(args.id))}`, { method: 'DELETE' });
         return { content: [{ type: 'text', text: `Deleted savings goal ${args.id}.` }] };
@@ -756,6 +856,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case 'evo_create_learning_track': {
         const created = await fetchEvo<any>('/learning/subjects', { method: 'POST', body: JSON.stringify({ name: args.name, icon: args.icon, color: args.color }) });
         return { content: [{ type: 'text', text: `Created learning track "${created.name}" (ID: ${created.id}).` }] };
+      }
+      case 'evo_update_learning_track': {
+        const { id, ...body } = args;
+        const updated = await fetchEvo<any>(`/learning/subjects/${encodeURIComponent(String(id))}`, { method: 'PATCH', body: JSON.stringify(body) });
+        return { content: [{ type: 'text', text: `Updated learning track "${updated.name}".` }] };
       }
 
       case 'evo_delete_learning_track': {
@@ -805,6 +910,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         return {
           content: [{ type: 'text', text: `Saved memory: "${created.text}".` }],
         };
+      }
+
+      case 'evo_update_memory': {
+        const { id, ...body } = args;
+        const updated = await fetchEvo<any>(`/memories/${encodeURIComponent(String(id))}`, { method: 'PATCH', body: JSON.stringify(body) });
+        return { content: [{ type: 'text', text: `Updated memory: "${updated.text}".` }] };
       }
 
       case 'evo_consult_ai_coach': {

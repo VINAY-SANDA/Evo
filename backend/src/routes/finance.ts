@@ -1,5 +1,5 @@
 import express, { Request, Response, Router } from 'express';
-import { query } from '../db/connection.js';
+import { pool, query } from '../db/connection.js';
 import { DEFAULT_USER_ID } from '../db/userHelper.js';
 
 const router: Router = express.Router();
@@ -101,6 +101,20 @@ router.post('/expenses', async (req: Request, res: Response) => {
   }
 });
 
+router.patch('/expenses/:id', async (req: Request, res: Response) => {
+  try {
+    const { amount, category, description, date } = req.body;
+    if (amount !== undefined && (!Number.isFinite(Number(amount)) || Number(amount) <= 0)) return res.status(400).json({ error: 'amount must be greater than zero' });
+    const result = await query(`UPDATE expenses SET amount = COALESCE($1, amount), category = COALESCE($2, category),
+      description = COALESCE($3, description), date = COALESCE($4::date, date)
+      WHERE id = $5 AND user_id = $6
+      RETURNING id, user_id as "userId", amount::float as amount, category, to_char(date, 'YYYY-MM-DD') as date, description, created_at as "createdAt"`,
+    [amount === undefined ? null : Number(amount), category || null, description === undefined ? null : String(description).trim(), date || null, req.params.id, DEFAULT_USER_ID]);
+    if (!result.rows.length) return res.status(404).json({ error: 'Expense not found' });
+    res.json(result.rows[0]);
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
 // DELETE /api/finance/expenses/:id
 router.delete('/expenses/:id', async (req: Request, res: Response) => {
   try {
@@ -155,6 +169,20 @@ router.post('/income', async (req: Request, res: Response) => {
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
+});
+
+router.patch('/income/:id', async (req: Request, res: Response) => {
+  try {
+    const { amount, source, category, date } = req.body;
+    if (amount !== undefined && (!Number.isFinite(Number(amount)) || Number(amount) <= 0)) return res.status(400).json({ error: 'amount must be greater than zero' });
+    const result = await query(`UPDATE incomes SET amount = COALESCE($1, amount), source = COALESCE($2, source),
+      category = COALESCE($3, category), date = COALESCE($4::date, date)
+      WHERE id = $5 AND user_id = $6
+      RETURNING id, user_id as "userId", amount::float as amount, source, to_char(date, 'YYYY-MM-DD') as date, category, created_at as "createdAt"`,
+    [amount === undefined ? null : Number(amount), source === undefined ? null : String(source).trim(), category || null, date || null, req.params.id, DEFAULT_USER_ID]);
+    if (!result.rows.length) return res.status(404).json({ error: 'Income not found' });
+    res.json(result.rows[0]);
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
 // DELETE /api/finance/income/:id
@@ -215,6 +243,22 @@ router.post('/savings', async (req: Request, res: Response) => {
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
+});
+
+router.patch('/savings/:id', async (req: Request, res: Response) => {
+  try {
+    const { title, targetAmount, currentAmount, deadline } = req.body;
+    if (targetAmount !== undefined && (!Number.isFinite(Number(targetAmount)) || Number(targetAmount) <= 0)) return res.status(400).json({ error: 'targetAmount must be greater than zero' });
+    if (currentAmount !== undefined && (!Number.isFinite(Number(currentAmount)) || Number(currentAmount) < 0)) return res.status(400).json({ error: 'currentAmount cannot be negative' });
+    const result = await query(`UPDATE savings_goals SET title = COALESCE($1, title), target_amount = COALESCE($2, target_amount),
+      current_amount = COALESCE($3, current_amount), deadline = COALESCE($4::date, deadline)
+      WHERE id = $5 AND user_id = $6
+      RETURNING id, user_id as "userId", title, target_amount::float as "targetAmount", current_amount::float as "currentAmount",
+        to_char(deadline, 'YYYY-MM-DD') as deadline, CASE WHEN target_amount > 0 THEN ROUND((current_amount / target_amount) * 100) ELSE 0 END as progress`,
+    [title === undefined ? null : String(title).trim(), targetAmount === undefined ? null : Number(targetAmount), currentAmount === undefined ? null : Number(currentAmount), deadline || null, req.params.id, DEFAULT_USER_ID]);
+    if (!result.rows.length) return res.status(404).json({ error: 'Savings goal not found' });
+    res.json(result.rows[0]);
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
 // DELETE /api/finance/savings/:id
@@ -305,6 +349,28 @@ router.post('/savings/:id/contributions', async (req: Request, res: Response) =>
     if (!result.rows.length) return res.status(404).json({ error: 'Savings goal not found' });
     res.status(201).json(result.rows[0]);
   } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+router.patch('/savings/:goalId/contributions/:contributionId', async (req: Request, res: Response) => {
+  const client = await pool.connect();
+  try {
+    const amount = req.body.amount === undefined ? null : Number(req.body.amount);
+    if (amount !== null && (!Number.isFinite(amount) || amount <= 0)) return res.status(400).json({ error: 'amount must be greater than zero' });
+    await client.query('BEGIN');
+    const currentResult = await client.query(`SELECT c.id, c.amount, c.savings_goal_id FROM savings_contributions c JOIN savings_goals g ON g.id = c.savings_goal_id
+      WHERE c.id = $1 AND c.savings_goal_id = $2 AND g.user_id = $3 FOR UPDATE`, [req.params.contributionId, req.params.goalId, DEFAULT_USER_ID]);
+    const current = currentResult.rows[0];
+    if (!current) { await client.query('ROLLBACK'); return res.status(404).json({ error: 'Savings contribution not found' }); }
+    const nextAmount = amount ?? Number(current.amount);
+    const result = await client.query(`UPDATE savings_contributions SET amount = $1, date = COALESCE($2::date, date), note = $3
+      WHERE id = $4 RETURNING id, savings_goal_id as "savingsGoalId", amount::float as amount, to_char(date, 'YYYY-MM-DD') as date, note`,
+    [nextAmount, req.body.date || null, req.body.note === undefined ? current.note : String(req.body.note || '').trim() || null, req.params.contributionId]);
+    const goal = await client.query(`UPDATE savings_goals SET current_amount = GREATEST(0, current_amount + $1)
+      WHERE id = $2 AND user_id = $3 RETURNING current_amount::float as "currentAmount"`, [nextAmount - Number(current.amount), req.params.goalId, DEFAULT_USER_ID]);
+    await client.query('COMMIT');
+    res.json({ ...result.rows[0], currentAmount: goal.rows[0]?.currentAmount });
+  } catch (err: any) { await client.query('ROLLBACK').catch(() => undefined); res.status(500).json({ error: err.message }); }
+  finally { client.release(); }
 });
 
 export default router;

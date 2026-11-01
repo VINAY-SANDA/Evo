@@ -37,6 +37,18 @@ let lastApiFailureMessage: string | null = null;
 
 export function getLastApiFailureMessage() { return lastApiFailureMessage; }
 
+export async function checkApiHealth(): Promise<boolean> {
+  if (!API_BASE_URL) return false;
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/health`, { method: 'GET', cache: 'no-store' });
+    if (!response.ok) return false;
+    const health = await response.json() as { status?: string };
+    return health.status === 'online';
+  } catch {
+    return false;
+  }
+}
+
 function reportApiFailure(endpoint: string, status?: number) {
   if (typeof window === 'undefined') return;
   lastApiFailureMessage = status ? `A request to ${endpoint} failed (${status}).` : `Could not reach the server for ${endpoint}.`;
@@ -59,6 +71,8 @@ async function apiRequest<T>(endpoint: string, options: RequestInit = {}, timeou
   const authHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
 
   const url = `${API_BASE_URL}${endpoint}`;
+  const tracksLoad = (options.method || 'GET').toUpperCase() === 'GET';
+  if (tracksLoad && typeof window !== 'undefined') window.dispatchEvent(new Event('evo-api-load-start'));
   const timeoutController = timeoutMs > 0 ? new AbortController() : undefined;
   const timeoutId = timeoutController && typeof window !== 'undefined'
     ? window.setTimeout(() => timeoutController.abort(), timeoutMs)
@@ -91,6 +105,7 @@ async function apiRequest<T>(endpoint: string, options: RequestInit = {}, timeou
     return null;
   } finally {
     if (timeoutId !== undefined && typeof window !== 'undefined') window.clearTimeout(timeoutId);
+    if (tracksLoad && typeof window !== 'undefined') window.dispatchEvent(new Event('evo-api-load-end'));
   }
 }
 
@@ -219,6 +234,10 @@ export async function createGoalMilestone(goalId: string, milestone: Partial<Mil
   });
 }
 
+export async function updateGoalMilestone(id: string, milestone: Partial<Milestone>): Promise<Milestone | null> {
+  return apiRequest<Milestone>(`/api/goals/milestones/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(milestone) });
+}
+
 export async function toggleGoalMilestone(milestoneId: string): Promise<Milestone | null> {
   return await apiRequest<Milestone>(`/api/goals/milestones/${milestoneId}/toggle`, {
     method: 'PATCH',
@@ -241,6 +260,10 @@ export async function createTask(task: Partial<Task>): Promise<Task | null> {
     method: 'POST',
     body: JSON.stringify(task),
   });
+}
+
+export async function updateTask(id: string, task: Omit<Partial<Task>, 'projectId' | 'goalId'> & { projectId?: string | null; goalId?: string | null }): Promise<Task | null> {
+  return apiRequest<Task>(`/api/tasks/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(task) });
 }
 
 export async function toggleTaskStatus(id: string): Promise<Task | null> {
@@ -278,6 +301,10 @@ export async function createHabit(habit: Partial<Habit>): Promise<Habit | null> 
     method: 'POST',
     body: JSON.stringify(habit),
   });
+}
+
+export async function updateHabit(id: string, habit: Partial<Habit>): Promise<Habit | null> {
+  return apiRequest<Habit>(`/api/habits/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(habit) });
 }
 
 export async function toggleHabitComplete(id: string): Promise<Habit | null> {
@@ -352,6 +379,18 @@ export async function addSavingsGoal(goal: Partial<SavingsGoal>): Promise<Saving
   });
 }
 
+export async function updateExpense(id: string, expense: Partial<Expense>): Promise<Expense | null> {
+  return apiRequest<Expense>(`/api/finance/expenses/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(expense) });
+}
+
+export async function updateIncome(id: string, income: Partial<Income>): Promise<Income | null> {
+  return apiRequest<Income>(`/api/finance/income/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(income) });
+}
+
+export async function updateSavingsGoal(id: string, goal: Partial<SavingsGoal>): Promise<SavingsGoal | null> {
+  return apiRequest<SavingsGoal>(`/api/finance/savings/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(goal) });
+}
+
 export async function deleteExpense(id: string): Promise<boolean> {
   return apiDelete(`/api/finance/expenses/${id}`);
 }
@@ -386,6 +425,10 @@ export async function addSavingsContribution(goalId: string, contribution: { amo
 export async function getSavingsContributions(goalId: string): Promise<SavingsContribution[]> {
   const result = await apiRequest<{ contributions: SavingsContribution[] }>(`/api/finance/savings/${goalId}/contributions`);
   return result?.contributions || [];
+}
+
+export async function updateSavingsContribution(goalId: string, contributionId: string, contribution: { amount?: number; date?: string; note?: string }): Promise<SavingsContribution & { currentAmount: number } | null> {
+  return apiRequest<SavingsContribution & { currentAmount: number }>(`/api/finance/savings/${encodeURIComponent(goalId)}/contributions/${encodeURIComponent(contributionId)}`, { method: 'PATCH', body: JSON.stringify(contribution) });
 }
 
 // ── Learning ──
@@ -424,6 +467,10 @@ export async function createLearningSubject(subject: Partial<LearningSubject>): 
   });
 }
 
+export async function updateLearningSubject(id: string, subject: Partial<LearningSubject>): Promise<LearningSubject | null> {
+  return apiRequest<LearningSubject>(`/api/learning/subjects/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(subject) });
+}
+
 export async function deleteLearningSubject(id: string): Promise<boolean> {
   return apiDelete(`/api/learning/subjects/${id}`);
 }
@@ -452,6 +499,10 @@ export async function deleteLearningTopic(id: string): Promise<boolean> {
 
 export async function logStudySession(session: { subjectId: string; topicId?: string; durationMinutes: number; note?: string }): Promise<StudySession | null> {
   return apiRequest<StudySession>('/api/learning/study-sessions', { method: 'POST', body: JSON.stringify(session) });
+}
+
+export async function updateStudySession(id: string, session: { durationMinutes?: number; note?: string }): Promise<StudySession | null> {
+  return apiRequest<StudySession>(`/api/learning/study-sessions/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(session) });
 }
 
 export async function getStudySessions(subjectId?: string): Promise<StudySession[]> {
@@ -497,6 +548,10 @@ export async function toggleProjectMilestone(id: string): Promise<ProjectMilesto
   return await apiRequest<ProjectMilestone>(`/api/projects/milestones/${id}/toggle`, {
     method: 'PATCH',
   });
+}
+
+export async function updateProjectMilestone(id: string, milestone: Partial<ProjectMilestone>): Promise<ProjectMilestone | null> {
+  return apiRequest<ProjectMilestone>(`/api/projects/milestones/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(milestone) });
 }
 
 export async function deleteProjectMilestone(id: string): Promise<boolean> {
@@ -549,6 +604,11 @@ export async function getDailyReview(): Promise<DailyReview | null> {
 export async function getWeeklyReview(): Promise<WeeklyReview | null> {
   const remote = await apiRequest<{ reviews: WeeklyReview[]; latest: WeeklyReview | null }>('/api/reviews/weekly');
   return remote?.latest || null;
+}
+
+export async function getWeeklyReviews(): Promise<WeeklyReview[]> {
+  const remote = await apiRequest<{ reviews: WeeklyReview[] }>('/api/reviews/weekly');
+  return remote?.reviews || [];
 }
 
 export async function saveDailyReview(review: Partial<DailyReview>): Promise<DailyReview | null> {
@@ -663,6 +723,11 @@ export async function addMemory(text: string, type: string = 'preference', impor
     body: JSON.stringify({ text, type, importance }),
   });
   return saved ? { ...saved, memoryType: saved.memoryType || saved.type || type } : null;
+}
+
+export async function updateMemory(id: string, memory: Partial<Memory>): Promise<Memory | null> {
+  const saved = await apiRequest<Memory & { type?: string }>(`/api/memories/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify({ ...memory, type: memory.memoryType }) });
+  return saved ? { ...saved, memoryType: saved.memoryType || saved.type || 'preference' } : null;
 }
 
 export async function deleteMemory(id: string): Promise<boolean> {

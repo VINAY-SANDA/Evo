@@ -5,6 +5,7 @@ import {
   createGoal,
   updateGoal,
   updateGoalProgress,
+  updateGoalMilestone,
   recordGoalCheckIn,
   deleteGoal,
 } from '../../services/api';
@@ -215,6 +216,15 @@ export default function GoalsPage() {
     });
   };
 
+  const editGoalMilestone = async (milestone: Milestone) => {
+    const title = window.prompt('Edit goal milestone', milestone.title);
+    if (title === null || !title.trim()) return;
+    const updated = await updateGoalMilestone(milestone.id, { title: title.trim() });
+    if (!updated) { showToast('Milestone could not be updated. Please try again.'); return; }
+    setMilestones(current => current.map(item => item.id === milestone.id ? { ...item, ...updated } : item));
+    showToast('Goal milestone updated.');
+  };
+
   const filteredGoals = filter === 'all' ? goals : goals.filter(g => g.category === filter);
   const categories = ['all', ...Array.from(new Set(goals.map(g => g.category)))];
 
@@ -367,6 +377,7 @@ export default function GoalsPage() {
                       />
                     ))}
                   </div>
+                  <div className="flex gap-2" style={{ marginTop: 'var(--space-2)' }}>{goalMilestones.map(milestone => <button key={`${milestone.id}-edit`} className="btn btn-ghost sm" onClick={() => void editGoalMilestone(milestone)}>Edit {milestone.title}</button>)}</div>
                 </div>
               )}
 

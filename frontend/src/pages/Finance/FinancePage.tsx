@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import type { Expense, ExpenseCategory, Income, SavingsGoal, FinanceBudget } from '../../types';
-import { addExpense, addIncome, addSavingsGoal, addSavingsContribution, deleteExpense, deleteIncome, deleteSavingsGoal, deleteFinanceBudget, getFinanceBudgets, getFinanceSummary, saveFinanceBudget } from '../../services/api';
+import type { Expense, ExpenseCategory, Income, SavingsGoal, FinanceBudget, SavingsContribution } from '../../types';
+import { addExpense, addIncome, addSavingsGoal, addSavingsContribution, getSavingsContributions, updateSavingsContribution, updateExpense, updateIncome, updateSavingsGoal, deleteExpense, deleteIncome, deleteSavingsGoal, deleteFinanceBudget, getFinanceBudgets, getFinanceSummary, saveFinanceBudget } from '../../services/api';
 import './FinancePage.css';
 
 type FinanceTab = 'overview' | 'expenses' | 'income' | 'savings' | 'budgets';
@@ -29,22 +29,27 @@ export default function FinancePage() {
   const [budgetMonth, setBudgetMonth] = useState(today().slice(0, 7));
   const [budgetCategory, setBudgetCategory] = useState<ExpenseCategory>('food');
   const [budgetLimit, setBudgetLimit] = useState('');
+  const [editingBudgetId, setEditingBudgetId] = useState<string | null>(null);
   const [quickEntry, setQuickEntry] = useState('');
   const [quickEntryType, setQuickEntryType] = useState<'expense' | 'income'>('expense');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [contributions, setContributions] = useState<Record<string, SavingsContribution[]>>({});
 
   const [expenseForm, setExpenseForm] = useState({ amount: '', category: 'food' as ExpenseCategory, description: '', date: today() });
   const [incomeForm, setIncomeForm] = useState({ amount: '', source: '', category: 'General', date: today() });
   const [savingsForm, setSavingsForm] = useState({ title: '', targetAmount: '', currentAmount: '0', deadline: '' });
 
   useEffect(() => {
-    getFinanceSummary().then(result => {
+    getFinanceSummary().then(async result => {
       if (!result) return;
       setExpenses(result.expenses);
       setIncomes(result.income);
       setSavingsGoals(result.savingsGoals);
       setTotalIncome(result.totalIncome);
+      const entries = await Promise.all(result.savingsGoals.map(async goal => [goal.id, await getSavingsContributions(goal.id)] as const));
+      setContributions(Object.fromEntries(entries));
     });
   }, []);
 
@@ -53,6 +58,29 @@ export default function FinancePage() {
   const showToast = (message: string) => {
     setToastMessage(message);
     window.setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  const openCreateModal = (nextModal: Exclude<FinanceModal, null>) => {
+    setEditingId(null);
+    setModal(nextModal);
+  };
+
+  const editExpense = (expense: Expense) => {
+    setEditingId(expense.id);
+    setExpenseForm({ amount: String(expense.amount), category: expense.category, description: expense.description, date: expense.date.slice(0, 10) });
+    setModal('expense');
+  };
+
+  const editIncome = (income: Income) => {
+    setEditingId(income.id);
+    setIncomeForm({ amount: String(income.amount), source: income.source, category: income.category || 'General', date: income.date.slice(0, 10) });
+    setModal('income');
+  };
+
+  const editSavingsGoal = (goal: SavingsGoal) => {
+    setEditingId(goal.id);
+    setSavingsForm({ title: goal.title, targetAmount: String(goal.targetAmount), currentAmount: String(goal.currentAmount), deadline: goal.deadline.slice(0, 10) });
+    setModal('savings');
   };
 
   const totalExpenses = expenses.reduce((sum, expense) => sum + Number(expense.amount), 0);
@@ -67,64 +95,70 @@ export default function FinancePage() {
     event.preventDefault();
     if (saving) return;
     setSaving(true);
-    const created = await addExpense({
+    const values = {
       amount: Number(expenseForm.amount),
       category: expenseForm.category,
       description: expenseForm.description.trim() || expenseForm.category,
       date: expenseForm.date,
-    });
+    };
+    const created = editingId ? await updateExpense(editingId, values) : await addExpense(values);
     setSaving(false);
     if (!created) {
       showToast('Expense was not saved. Please try again.');
       return;
     }
-    setExpenses(current => [created, ...current]);
+    setExpenses(current => editingId ? current.map(item => item.id === editingId ? created : item) : [created, ...current]);
     setModal(null);
+    setEditingId(null);
     setExpenseForm({ amount: '', category: 'food', description: '', date: today() });
-    showToast(`Expense saved: ₹${Number(created.amount).toLocaleString()}.`);
+    showToast(`${editingId ? 'Expense updated' : 'Expense saved'}: ₹${Number(created.amount).toLocaleString()}.`);
   };
 
   const saveIncome = async (event: React.FormEvent) => {
     event.preventDefault();
     if (saving) return;
     setSaving(true);
-    const created = await addIncome({
+    const values = {
       amount: Number(incomeForm.amount),
       source: incomeForm.source.trim(),
       category: incomeForm.category.trim() || 'General',
       date: incomeForm.date,
-    });
+    };
+    const created = editingId ? await updateIncome(editingId, values) : await addIncome(values);
     setSaving(false);
     if (!created) {
       showToast('Income was not saved. Please try again.');
       return;
     }
-    setIncomes(current => [created, ...current]);
-    setTotalIncome(current => current + Number(created.amount));
+    setIncomes(current => editingId ? current.map(item => item.id === editingId ? created : item) : [created, ...current]);
+    setTotalIncome(current => current + Number(created.amount) - (editingId ? Number(incomes.find(item => item.id === editingId)?.amount || 0) : 0));
     setModal(null);
+    setEditingId(null);
     setIncomeForm({ amount: '', source: '', category: 'General', date: today() });
-    showToast(`Income saved: ₹${Number(created.amount).toLocaleString()}.`);
+    showToast(`${editingId ? 'Income updated' : 'Income saved'}: ₹${Number(created.amount).toLocaleString()}.`);
   };
 
   const saveSavingsGoal = async (event: React.FormEvent) => {
     event.preventDefault();
     if (saving) return;
     setSaving(true);
-    const created = await addSavingsGoal({
+    const values = {
       title: savingsForm.title.trim(),
       targetAmount: Number(savingsForm.targetAmount),
       currentAmount: Number(savingsForm.currentAmount) || 0,
       deadline: savingsForm.deadline,
-    });
+    };
+    const created = editingId ? await updateSavingsGoal(editingId, values) : await addSavingsGoal(values);
     setSaving(false);
     if (!created) {
       showToast('Savings goal was not saved. Please try again.');
       return;
     }
-    setSavingsGoals(current => [...current, created]);
+    setSavingsGoals(current => editingId ? current.map(item => item.id === editingId ? created : item) : [...current, created]);
     setModal(null);
+    setEditingId(null);
     setSavingsForm({ title: '', targetAmount: '', currentAmount: '0', deadline: '' });
-    showToast(`Savings goal “${created.title}” added.`);
+    showToast(editingId ? `Savings goal “${created.title}” updated.` : `Savings goal “${created.title}” added.`);
   };
 
   const removeExpense = async (expense: Expense) => {
@@ -169,8 +203,23 @@ export default function FinancePage() {
     try {
       const saved = await addSavingsContribution(goal.id, { amount, date: today() });
       setSavingsGoals(current => current.map(item => item.id === goal.id ? { ...item, currentAmount: saved.currentAmount } : item));
+      setContributions(current => ({ ...current, [goal.id]: [saved, ...(current[goal.id] || [])] }));
       showToast(`₹${amount.toLocaleString()} added to ${goal.title}.`);
     } catch (error) { showToast(error instanceof Error ? error.message : 'Contribution could not be saved.'); }
+  };
+
+  const editSavingsContribution = async (goal: SavingsGoal, contribution: SavingsContribution) => {
+    const raw = window.prompt('Contribution amount (₹)', String(contribution.amount));
+    if (raw === null) return;
+    const amount = Number(raw);
+    if (!Number.isFinite(amount) || amount <= 0) { showToast('Enter an amount greater than zero.'); return; }
+    const note = window.prompt('Note', contribution.note || '');
+    if (note === null) return;
+    const saved = await updateSavingsContribution(goal.id, contribution.id, { amount, note });
+    if (!saved) { showToast('Contribution could not be updated. Please try again.'); return; }
+    setSavingsGoals(current => current.map(item => item.id === goal.id ? { ...item, currentAmount: saved.currentAmount } : item));
+    setContributions(current => ({ ...current, [goal.id]: (current[goal.id] || []).map(item => item.id === contribution.id ? saved : item) }));
+    showToast('Savings contribution updated.');
   };
 
   const submitBudget = async (event: React.FormEvent) => {
@@ -179,6 +228,7 @@ export default function FinancePage() {
     if (!saved) { showToast('Budget could not be saved. Please try again.'); return; }
     setBudgets(current => [...current.filter(item => item.category !== saved.category), { ...saved, spent: current.find(item => item.category === saved.category)?.spent || 0 }]);
     setBudgetLimit('');
+    setEditingBudgetId(null);
     showToast(`${saved.category} budget saved for ${budgetMonth}.`);
   };
 
@@ -225,7 +275,7 @@ export default function FinancePage() {
           <h1 className="page-title">Money & Savings</h1>
           <p className="page-subtitle">Track what comes in, what goes out, and what you’re building toward.</p>
         </div>
-        <button className="btn btn-primary" onClick={() => setModal(primaryAction.action)}>
+        <button className="btn btn-primary" onClick={() => openCreateModal(primaryAction.action)}>
           {primaryAction.label}
         </button>
       </div>
@@ -296,7 +346,7 @@ export default function FinancePage() {
               <h2 className="card-title">Recent Expenses</h2>
               <button className="btn btn-secondary sm" onClick={() => setTab('expenses')}>View all →</button>
             </div>
-            <FinanceRows expenses={expenses.slice(0, 5)} onDelete={removeExpense} />
+            <FinanceRows expenses={expenses.slice(0, 5)} onEdit={editExpense} onDelete={removeExpense} />
           </div>
         </div>
       )}
@@ -305,9 +355,9 @@ export default function FinancePage() {
         <div className="card">
           <div className="card-header">
             <h2 className="card-title">Expenses</h2>
-            <button className="btn btn-primary sm" onClick={() => setModal('expense')}>+ Add Expense</button>
+            <button className="btn btn-primary sm" onClick={() => openCreateModal('expense')}>+ Add Expense</button>
           </div>
-          <FinanceRows expenses={expenses} onDelete={removeExpense} />
+          <FinanceRows expenses={expenses} onEdit={editExpense} onDelete={removeExpense} />
         </div>
       )}
 
@@ -315,7 +365,7 @@ export default function FinancePage() {
         <div className="card">
           <div className="card-header">
             <h2 className="card-title">Income</h2>
-            <button className="btn btn-primary sm" onClick={() => setModal('income')}>+ Add Income</button>
+            <button className="btn btn-primary sm" onClick={() => openCreateModal('income')}>+ Add Income</button>
           </div>
           {incomes.length === 0 ? <p className="finance-empty">No income yet. Add a source to see it here.</p> : (
             <div className="finance-table">
@@ -327,6 +377,7 @@ export default function FinancePage() {
                     <span className="finance-row-date">{new Date(income.date).toLocaleDateString('en-IN')} · {income.category}</span>
                   </div>
                   <span className="finance-row-amount income">+₹{Number(income.amount).toLocaleString()}</span>
+                  <button className="btn btn-secondary sm" onClick={() => editIncome(income)}>Edit</button>
                   <button className="finance-delete-button" onClick={() => void removeIncome(income)} aria-label={`Delete income ${income.source}`} title="Delete income">Delete</button>
                 </div>
               ))}
@@ -339,7 +390,7 @@ export default function FinancePage() {
         <div className="card">
           <div className="card-header">
             <h2 className="card-title">Savings Goals</h2>
-            <button className="btn btn-primary sm" onClick={() => setModal('savings')}>+ Add Savings Goal</button>
+            <button className="btn btn-primary sm" onClick={() => openCreateModal('savings')}>+ Add Savings Goal</button>
           </div>
           {savingsGoals.length === 0 ? <p className="finance-empty">No savings goals yet. Set a target to start building toward it.</p> : (
             <div className="savings-goals-list">
@@ -356,6 +407,7 @@ export default function FinancePage() {
                       <div className="savings-goal-actions">
                         <span className="savings-goal-percent">{progress}%</span>
                         <button className="btn btn-secondary sm" onClick={() => void recordSavingsContribution(goal)}>+ Add contribution</button>
+                        <button className="btn btn-secondary sm" onClick={() => editSavingsGoal(goal)}>Edit</button>
                         <button className="finance-delete-button" onClick={() => void removeSavingsGoal(goal)} aria-label={`Delete savings goal ${goal.title}`} title="Delete savings goal">Delete</button>
                       </div>
                     </div>
@@ -369,6 +421,7 @@ export default function FinancePage() {
                       <div className="savings-breakdown-item"><span className="savings-breakdown-label">Target date</span><span className="savings-breakdown-value">{new Date(`${goal.deadline}T00:00:00`).toLocaleDateString('en-IN')}</span></div>
                       <div className="savings-breakdown-item"><span className="savings-breakdown-label">Days left</span><span className="savings-breakdown-value">{daysLeft}</span></div>
                     </div>
+                    {(contributions[goal.id] || []).length > 0 && <div className="savings-breakdown"><strong>Contributions</strong>{contributions[goal.id].slice(0, 5).map(contribution => <div key={contribution.id} className="budget-row-footer"><span>₹{Number(contribution.amount).toLocaleString()} · {contribution.date}{contribution.note ? ` · ${contribution.note}` : ''}</span><button className="btn btn-secondary sm" onClick={() => void editSavingsContribution(goal, contribution)}>Edit</button></div>)}</div>}
                   </div>
                 );
               })}
@@ -388,7 +441,7 @@ export default function FinancePage() {
                 {Object.keys(categoryEmojis).map(category => <option key={category} value={category}>{categoryEmojis[category as ExpenseCategory]} {category}</option>)}
               </select>
               <input className="form-input" type="number" min="1" step="0.01" placeholder="Monthly limit (₹)" value={budgetLimit} onChange={event => setBudgetLimit(event.target.value)} required />
-              <button className="btn btn-primary" type="submit">Save budget</button>
+              <button className="btn btn-primary" type="submit">{editingBudgetId ? 'Update budget' : 'Save budget'}</button>
             </form>
             <div className="budget-list">
               {budgets.length === 0 ? <p className="finance-empty">No limits set for this month yet.</p> : budgets.map(budget => {
@@ -397,7 +450,7 @@ export default function FinancePage() {
                 return <div className="budget-row" key={budget.id}>
                   <div className="category-row-header"><strong>{categoryEmojis[budget.category as ExpenseCategory] || '📌'} {budget.category}</strong><span>₹{Number(budget.spent).toLocaleString()} / ₹{Number(budget.limitAmount).toLocaleString()}</span></div>
                   <div className="progress-bar sm"><div className="progress-bar-fill animated" style={{ width: `${percent}%`, background: reached ? 'var(--evo-danger)' : 'var(--evo-primary)' }} /></div>
-                  <div className="budget-row-footer"><span className={reached ? 'budget-alert' : ''}>{reached ? 'Budget alert: spending reached your warning threshold.' : `${Math.max(0, Number(budget.limitAmount) - Number(budget.spent)).toLocaleString()} left`}</span><button className="finance-delete-button" onClick={() => void removeBudget(budget)}>Delete</button></div>
+                  <div className="budget-row-footer"><span className={reached ? 'budget-alert' : ''}>{reached ? 'Budget alert: spending reached your warning threshold.' : `${Math.max(0, Number(budget.limitAmount) - Number(budget.spent)).toLocaleString()} left`}</span><button className="btn btn-secondary sm" onClick={() => { setEditingBudgetId(budget.id); setBudgetCategory(budget.category as ExpenseCategory); setBudgetMonth(budget.month); setBudgetLimit(String(budget.limitAmount)); }}>Edit</button><button className="finance-delete-button" onClick={() => void removeBudget(budget)}>Delete</button></div>
                 </div>;
               })}
             </div>
@@ -422,8 +475,8 @@ export default function FinancePage() {
         <div className="modal-overlay" onClick={() => !saving && setModal(null)}>
           <div className="modal" onClick={event => event.stopPropagation()}>
             <div className="modal-header">
-              <h2 className="modal-title">{modal === 'expense' ? 'Add Expense' : modal === 'income' ? 'Add Income' : 'Add Savings Goal'}</h2>
-              <button className="modal-close" onClick={() => !saving && setModal(null)} aria-label="Close">✕</button>
+              <h2 className="modal-title">{editingId ? 'Edit ' : 'Add '}{modal === 'expense' ? 'Expense' : modal === 'income' ? 'Income' : 'Savings Goal'}</h2>
+              <button className="modal-close" onClick={() => { if (!saving) { setModal(null); setEditingId(null); } }} aria-label="Close">✕</button>
             </div>
 
             {modal === 'expense' && (
@@ -434,7 +487,7 @@ export default function FinancePage() {
                   <div className="form-group"><label className="form-label" htmlFor="expense-description">Description</label><input id="expense-description" className="form-input" value={expenseForm.description} onChange={event => setExpenseForm({ ...expenseForm, description: event.target.value })} placeholder="What was it for?" /></div>
                   <div className="form-group"><label className="form-label" htmlFor="expense-date">Date</label><input id="expense-date" className="form-input" type="date" value={expenseForm.date} onChange={event => setExpenseForm({ ...expenseForm, date: event.target.value })} required /></div>
                 </div>
-                <div className="modal-footer"><button type="button" className="btn btn-secondary" onClick={() => setModal(null)}>Cancel</button><button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Saving…' : 'Save Expense'}</button></div>
+                <div className="modal-footer"><button type="button" className="btn btn-secondary" onClick={() => { setModal(null); setEditingId(null); }}>Cancel</button><button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Saving…' : editingId ? 'Save changes' : 'Save Expense'}</button></div>
               </form>
             )}
 
@@ -446,7 +499,7 @@ export default function FinancePage() {
                   <div className="form-group"><label className="form-label" htmlFor="income-category">Category</label><input id="income-category" className="form-input" value={incomeForm.category} onChange={event => setIncomeForm({ ...incomeForm, category: event.target.value })} /></div>
                   <div className="form-group"><label className="form-label" htmlFor="income-date">Date</label><input id="income-date" className="form-input" type="date" value={incomeForm.date} onChange={event => setIncomeForm({ ...incomeForm, date: event.target.value })} required /></div>
                 </div>
-                <div className="modal-footer"><button type="button" className="btn btn-secondary" onClick={() => setModal(null)}>Cancel</button><button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Saving…' : 'Save Income'}</button></div>
+                <div className="modal-footer"><button type="button" className="btn btn-secondary" onClick={() => { setModal(null); setEditingId(null); }}>Cancel</button><button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Saving…' : editingId ? 'Save changes' : 'Save Income'}</button></div>
               </form>
             )}
 
@@ -458,7 +511,7 @@ export default function FinancePage() {
                   <div className="form-group"><label className="form-label" htmlFor="savings-current">Already saved (₹)</label><input id="savings-current" className="form-input" type="number" min="0" step="0.01" value={savingsForm.currentAmount} onChange={event => setSavingsForm({ ...savingsForm, currentAmount: event.target.value })} /></div>
                   <div className="form-group"><label className="form-label" htmlFor="savings-deadline">Target date *</label><input id="savings-deadline" className="form-input" type="date" min={today()} value={savingsForm.deadline} onChange={event => setSavingsForm({ ...savingsForm, deadline: event.target.value })} required /></div>
                 </div>
-                <div className="modal-footer"><button type="button" className="btn btn-secondary" onClick={() => setModal(null)}>Cancel</button><button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Saving…' : 'Create Savings Goal'}</button></div>
+                <div className="modal-footer"><button type="button" className="btn btn-secondary" onClick={() => { setModal(null); setEditingId(null); }}>Cancel</button><button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Saving…' : editingId ? 'Save changes' : 'Create Savings Goal'}</button></div>
               </form>
             )}
           </div>
@@ -468,7 +521,7 @@ export default function FinancePage() {
   );
 }
 
-function FinanceRows({ expenses, onDelete }: { expenses: Expense[]; onDelete: (expense: Expense) => void }) {
+function FinanceRows({ expenses, onEdit, onDelete }: { expenses: Expense[]; onEdit: (expense: Expense) => void; onDelete: (expense: Expense) => void }) {
   if (expenses.length === 0) return <p className="finance-empty">No expenses yet.</p>;
   return (
     <div className="finance-table">
@@ -480,6 +533,7 @@ function FinanceRows({ expenses, onDelete }: { expenses: Expense[]; onDelete: (e
             <span className="finance-row-date">{new Date(expense.date).toLocaleDateString('en-IN')} · {expense.category}</span>
           </div>
           <span className="finance-row-amount expense">−₹{Number(expense.amount).toLocaleString()}</span>
+          <button className="btn btn-secondary sm" onClick={() => onEdit(expense)}>Edit</button>
           <button className="finance-delete-button" onClick={() => void onDelete(expense)} aria-label={`Delete expense ${expense.description}`} title="Delete expense">Delete</button>
         </div>
       ))}

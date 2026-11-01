@@ -61,13 +61,15 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
 // ── Health Check ──
-app.get('/api/health', (_req: Request, res: Response) => {
-  res.json({
-    status: 'online',
-    system: 'EVO Personal AI Operating System API',
-    version: '2.0.0',
-    timestamp: new Date().toISOString(),
-    routes: [
+app.get('/api/health', async (_req: Request, res: Response) => {
+  try {
+    await query('SELECT 1');
+    res.json({
+      status: 'online',
+      system: 'EVO Personal AI Operating System API',
+      version: '2.0.0',
+      timestamp: new Date().toISOString(),
+      routes: [
       'GET /api/health',
       'POST /api/ai/chat',
       'GET|POST /api/memories',
@@ -88,8 +90,11 @@ app.get('/api/health', (_req: Request, res: Response) => {
       'GET /api/progress/scores',
       'GET|POST /api/reviews/daily',
       'GET|POST /api/reviews/weekly',
-    ],
-  });
+      ],
+    });
+  } catch {
+    res.status(503).json({ status: 'starting', system: 'EVO Personal AI Operating System API' });
+  }
 });
 
 // ── Route Mounts ──
@@ -214,6 +219,22 @@ app.post('/api/memories', async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Error creating memory:', error);
     res.status(500).json({ error: 'Failed to create memory' });
+  }
+});
+
+app.patch('/api/memories/:id', async (req: Request, res: Response) => {
+  try {
+    const { text, type, importance } = req.body;
+    if (text !== undefined && !String(text).trim()) return res.status(400).json({ error: 'text is required' });
+    const result = await query(`UPDATE memories SET text = COALESCE($1, text), memory_type = COALESCE($2, memory_type),
+      importance = COALESCE($3, importance), updated_at = CURRENT_TIMESTAMP
+      WHERE id = $4 AND user_id = $5 RETURNING id, text, memory_type as type, importance, created_at as "createdAt", updated_at as "updatedAt"`,
+    [text === undefined ? null : String(text).trim(), type || null, importance === undefined ? null : Math.max(1, Math.min(10, Number(importance) || 7)), req.params.id, DEFAULT_USER_ID]);
+    if (!result.rows.length) return res.status(404).json({ error: 'Memory not found' });
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error updating memory:', error);
+    res.status(500).json({ error: 'Failed to update memory' });
   }
 });
 

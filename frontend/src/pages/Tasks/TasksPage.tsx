@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import type { Task, TaskStatus, Priority, Project } from '../../types';
-import { getTasks, createTask, toggleTaskStatus, deleteTask as apiDeleteTask, getProjects } from '../../services/api';
+import { getTasks, createTask, toggleTaskStatus, deleteTask as apiDeleteTask, getProjects, updateTask } from '../../services/api';
 import './TasksPage.css';
 
 const statusLabels: Record<TaskStatus, string> = {
@@ -21,6 +21,8 @@ export default function TasksPage() {
   const [showModal, setShowModal] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [quickTask, setQuickTask] = useState('');
+  const [projectFilter, setProjectFilter] = useState('all');
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
 
   const [formData, setFormData] = useState<{
     title: string;
@@ -59,22 +61,29 @@ export default function TasksPage() {
   weekEnd.setDate(weekEnd.getDate() + 7);
   const weekEndStr = weekEnd.toISOString().split('T')[0];
 
-  const filteredTasks = filter === 'all'
+  const statusFilteredTasks = filter === 'all'
     ? tasks
     : filter === 'today'
     ? tasks.filter(t => t.dueDate === todayStr)
     : filter === 'week'
     ? tasks.filter(t => Boolean(t.dueDate && t.dueDate >= todayStr && t.dueDate <= weekEndStr && (!selectedWeekDay || t.dueDate === selectedWeekDay)))
     : tasks.filter(t => t.status === filter);
+  const filteredTasks = statusFilteredTasks.filter(task => projectFilter === 'all' || (projectFilter === 'unlinked' ? !task.projectId : task.projectId === projectFilter));
 
   const toggleTask = async (id: string) => {
-    // Optimistic update
+    const previousTasks = tasks;
     setTasks(prev => prev.map(t =>
       t.id === id
         ? { ...t, status: (t.status === 'completed' ? 'todo' : 'completed') as TaskStatus }
         : t
     ));
-    await toggleTaskStatus(id);
+    const savedTask = await toggleTaskStatus(id);
+    if (!savedTask) {
+      setTasks(previousTasks);
+      showToast('Task update could not be saved. Please try again.');
+    } else {
+      setTasks(prev => prev.map(task => task.id === id ? savedTask : task));
+    }
   };
 
   const deleteTask = async (id: string) => {
@@ -99,7 +108,7 @@ export default function TasksPage() {
     e.preventDefault();
     if (!formData.title.trim()) return;
 
-    const newTask = await createTask({
+    const taskValues = {
       title: formData.title.trim(),
       description: formData.description.trim(),
       dueDate: formData.dueDate,
@@ -107,16 +116,20 @@ export default function TasksPage() {
       priority: formData.priority,
       estimatedMinutes: Number(formData.estimatedMinutes) || 30,
       category: formData.category.trim() || 'General',
-      status: 'todo',
+      status: 'todo' as const,
       recurrenceFrequency: formData.recurrenceFrequency || undefined,
       isRecurring: Boolean(formData.recurrenceFrequency),
       projectId: formData.projectId || undefined,
-    });
+    };
+    const newTask = editingTaskId
+      ? await updateTask(editingTaskId, { ...taskValues, projectId: formData.projectId || null, recurrenceFrequency: formData.recurrenceFrequency || null })
+      : await createTask(taskValues);
 
     if (newTask) {
-      setTasks(prev => [newTask, ...prev]);
-      showToast(`✓ Task "${newTask.title}" added to planner`);
+      setTasks(prev => editingTaskId ? prev.map(task => task.id === editingTaskId ? newTask : task) : [newTask, ...prev]);
+      showToast(editingTaskId ? `Task "${newTask.title}" updated.` : `✓ Task "${newTask.title}" added to planner`);
       setShowModal(false);
+      setEditingTaskId(null);
       setFormData({
         title: '',
         description: '',
@@ -129,8 +142,24 @@ export default function TasksPage() {
         projectId: '',
       });
     } else {
-      showToast(`❌ Failed to create task. Check backend connection & console (F12).`);
+      showToast(editingTaskId ? 'Task changes could not be saved. Please try again.' : 'Task could not be created. Please try again.');
     }
+  };
+
+  const editTask = (task: Task) => {
+    setEditingTaskId(task.id);
+    setFormData({
+      title: task.title, description: task.description || '', dueDate: task.dueDate || '', dueTime: task.dueTime || '',
+      priority: task.priority, estimatedMinutes: task.estimatedMinutes || 30, category: task.category || 'General',
+      recurrenceFrequency: task.recurrenceFrequency || '', projectId: task.projectId || '',
+    });
+    setShowModal(true);
+  };
+
+  const openCreateTask = () => {
+    setEditingTaskId(null);
+    setFormData({ title: '', description: '', dueDate: new Date().toISOString().slice(0, 10), dueTime: '10:00', priority: 'high', estimatedMinutes: 45, category: 'Career', recurrenceFrequency: '', projectId: '' });
+    setShowModal(true);
   };
 
   const captureQuickTask = async (event: React.FormEvent) => {
@@ -162,7 +191,7 @@ export default function TasksPage() {
             {tasks.filter(t => t.status === 'completed').length} of {tasks.length} tasks completed
           </p>
         </div>
-        <button className="btn btn-primary" onClick={() => setShowModal(true)}>
+        <button className="btn btn-primary" onClick={openCreateTask}>
           ➕ New Task
         </button>
       </div>
@@ -186,6 +215,8 @@ export default function TasksPage() {
           </button>
         ))}
       </div>
+
+      <div className="task-project-filter"><label className="form-label" htmlFor="task-project-filter">Project</label><select id="task-project-filter" className="form-input" value={projectFilter} onChange={event => setProjectFilter(event.target.value)}><option value="all">All projects</option><option value="unlinked">No project</option>{projects.map(project => <option key={project.id} value={project.id}>{project.name}</option>)}</select></div>
 
       {filter === 'week' && <div className="week-calendar-strip" aria-label="Next seven days">
         <button className={`week-calendar-day ${selectedWeekDay === null ? 'selected' : ''}`} onClick={() => setSelectedWeekDay(null)}><span>All</span><strong>{getStatusCount('week')}</strong><small>7 days</small></button>
@@ -245,18 +276,19 @@ export default function TasksPage() {
                   {task.dueTime && <span>⏰ {task.dueTime}</span>}
                   {task.estimatedMinutes && <span>⏱ {task.estimatedMinutes}m</span>}
                   {task.category && <span>📁 {task.category}</span>}
+                  {task.projectId && <span className="task-project-link">🚀 {projects.find(project => project.id === task.projectId)?.name || 'Linked project'}</span>}
                   {task.isRecurring && <span>🔄 Recurring</span>}
                 </div>
               </div>
 
-              <button
+              <div className="task-card-actions"><button className="btn btn-secondary sm" onClick={() => editTask(task)}>Edit</button><button
                 className="btn btn-ghost btn-icon"
                 title="Delete task"
                 onClick={() => deleteTask(task.id)}
                 style={{ color: 'var(--evo-text-tertiary)', fontSize: '1.1rem' }}
               >
                 ✕
-              </button>
+              </button></div>
             </div>
           ))
         )}
@@ -267,7 +299,7 @@ export default function TasksPage() {
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
-              <h2 className="modal-title">Create New Task</h2>
+              <h2 className="modal-title">{editingTaskId ? 'Edit Task' : 'Create New Task'}</h2>
               <button className="modal-close" onClick={() => setShowModal(false)}>✕</button>
             </div>
             <form onSubmit={handleCreateTask}>
@@ -362,14 +394,14 @@ export default function TasksPage() {
                     <label className="form-label" htmlFor="task-project">Project</label>
                     <select id="task-project" className="form-input" value={formData.projectId} onChange={e => setFormData({ ...formData, projectId: e.target.value })}>
                       <option value="">No project</option>
-                      {projects.filter(project => project.status === 'active').map(project => <option key={project.id} value={project.id}>{project.name}</option>)}
+                      {projects.map(project => <option key={project.id} value={project.id}>{project.name}{project.status !== 'active' ? ` (${project.status})` : ''}</option>)}
                     </select>
                   </div>
                 </div>
               </div>
               <div className="modal-footer">
-                <button type="button" className="btn btn-secondary" onClick={() => setShowModal(false)}>Cancel</button>
-                <button type="submit" className="btn btn-primary">Create Task</button>
+                <button type="button" className="btn btn-secondary" onClick={() => { setShowModal(false); setEditingTaskId(null); }}>Cancel</button>
+                <button type="submit" className="btn btn-primary">{editingTaskId ? 'Save Task' : 'Create Task'}</button>
               </div>
             </form>
           </div>
