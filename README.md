@@ -19,7 +19,7 @@ EVO is a comprehensive personal AI operating system built to manage and optimize
 
 - **Frontend**: React 19, TypeScript, Vite, React Router 7, Vanilla CSS design system.
 - **Backend**: Node.js, Express, TypeScript, REST API.
-- **Database**: PostgreSQL with `pgvector` for vector similarity memory retrieval.
+- **Database**: PostgreSQL. The current AI context uses explicitly saved memories; diary entries are excluded from AI and MCP access.
 
 ---
 
@@ -51,8 +51,11 @@ Set these environment variables for the backend before signing in:
 - `EVO_AUTH_SECRET`: a long, random secret used to sign seven-day sessions.
 - `EVO_MCP_PUBLIC_URL`: the full public MCP URL, ending in `/mcp` (for example `https://your-backend.example.com/mcp`). Render deployments can use the service's `RENDER_EXTERNAL_URL` automatically.
 - `EVO_MCP_TOKEN`: a separate secret used by the local stdio MCP bridge when it calls the backend API.
-- `CORS_ORIGIN`: comma-separated frontend origins; local development defaults to `http://localhost:5173`.
+- `CORS_ORIGIN`: exact comma-separated frontend origins; local development defaults to `http://localhost:5173`. Production must list the deployed web app origin(s).
+- `PGSSL_REJECT_UNAUTHORIZED`: defaults to `true` for remote PostgreSQL connections. Set it to `false` only if your database provider requires an untrusted certificate.
 
 The frontend also needs `VITE_API_URL` set to the backend origin when it is hosted separately. The remote Streamable HTTP MCP endpoint publishes OAuth discovery, dynamic client registration, and an authorization-code flow with PKCE. Gemini users approve access by entering the same EVO owner passcode used by the web app. Gemini must reach the MCP endpoint over public HTTPS; `localhost` works only for local clients running on the same machine. The stdio MCP bridge continues to use `EVO_MCP_TOKEN` for backend requests. Local login uses `Vinay@2026` unless `EVO_MASTER_PASSCODE` overrides it; production requires an explicitly configured passcode and `EVO_AUTH_SECRET`. Offline frontend login remains disabled.
+
+The web app waits for the backend readiness endpoint. The backend reports ready only after its database connection, default owner row, and additive migrations are available. The owner can download an authenticated JSON export from Settings; the export includes the private diary and is not exposed through MCP.
 
 Run the backend regression checks with `npm --prefix backend test`.

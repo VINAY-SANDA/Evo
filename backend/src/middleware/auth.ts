@@ -141,8 +141,6 @@ function isAllowedMcpApiCall(method: string, originalUrl: string): boolean {
     'POST /api/learning/study-sessions',
     'GET /api/memories',
     'POST /api/memories',
-    'GET /api/library/diary',
-    'POST /api/library/diary',
     'GET /api/library/movies',
     'POST /api/library/movies',
     'POST /api/ai/chat',
@@ -164,7 +162,7 @@ function isAllowedMcpApiCall(method: string, originalUrl: string): boolean {
       /^\/api\/learning\/(subjects|topics)\/[0-9a-f-]+$/i.test(pathname)
       || /^\/api\/projects\/[0-9a-f-]+$/i.test(pathname)
       || /^\/api\/projects\/milestones\/[0-9a-f-]+$/i.test(pathname)
-      || /^\/api\/library\/(diary|movies)\/[0-9a-f-]+$/i.test(pathname)
+      || /^\/api\/library\/movies\/[0-9a-f-]+$/i.test(pathname)
       || /^\/api\/memories\/[0-9a-f-]+$/i.test(pathname)
     )) ||
     (method === 'PATCH' && (
@@ -178,7 +176,7 @@ function isAllowedMcpApiCall(method: string, originalUrl: string): boolean {
       /^\/api\/finance\/(expenses|income|savings)\/[0-9a-f-]+$/i.test(pathname) ||
       /^\/api\/finance\/savings\/[0-9a-f-]+\/contributions\/[0-9a-f-]+$/i.test(pathname) ||
       /^\/api\/memories\/[0-9a-f-]+$/i.test(pathname) ||
-      /^\/api\/library\/(diary|movies)\/[0-9a-f-]+$/i.test(pathname)
+      /^\/api\/library\/movies\/[0-9a-f-]+$/i.test(pathname)
       || /^\/api\/tasks\/[0-9a-f-]+$/i.test(pathname)
     )) ||
     (method === 'PATCH' && (

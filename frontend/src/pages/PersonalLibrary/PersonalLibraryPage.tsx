@@ -91,7 +91,7 @@ export default function PersonalLibraryPage({ mode }: { mode: 'diary' | 'movies'
       <header className="page-header">
         <div>
           <h1 className="page-title">{isDiary ? 'My Diary' : 'Movie Journal'}</h1>
-          <p className="page-subtitle">{isDiary ? 'A private space for your thoughts and moments.' : 'Keep the movies you watch and what you thought of them.'}</p>
+          <p className="page-subtitle">{isDiary ? 'A private space for your thoughts and moments. Diary entries are excluded from EVO AI context and MCP tools.' : 'Keep the movies you watch and what you thought of them.'}</p>
         </div>
       </header>
 

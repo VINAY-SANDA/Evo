@@ -373,10 +373,6 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       { name: 'evo_get_weekly_review', description: 'Get recent weekly review history.', inputSchema: { type: 'object', properties: {} } },
       { name: 'evo_save_weekly_review', description: 'Save a weekly review and next-week priorities.', inputSchema: { type: 'object', properties: { weekStart: { type: 'string' }, weekEnd: { type: 'string' }, overallScore: { type: 'number' }, biggestAchievement: { type: 'string' }, biggestProblem: { type: 'string' }, nextWeekPriorities: { type: 'array', items: { type: 'string' } }, categoryScores: { type: 'array', items: { type: 'object' } } } } },
       { name: 'evo_get_progress_scores', description: 'Get progress scores by life area.', inputSchema: { type: 'object', properties: {} } },
-      { name: 'evo_list_diary_entries', description: 'List personal diary entries, newest first.', inputSchema: { type: 'object', properties: {} } },
-      { name: 'evo_add_diary_entry', description: 'Save a personal diary entry.', inputSchema: { type: 'object', properties: { title: { type: 'string' }, body: { type: 'string' }, date: { type: 'string', description: 'YYYY-MM-DD; defaults to today' } }, required: ['title'] } },
-      { name: 'evo_update_diary_entry', description: 'Edit a saved diary entry.', inputSchema: { type: 'object', properties: { id: { type: 'string' }, title: { type: 'string' }, body: { type: 'string' }, date: { type: 'string' } }, required: ['id'] } },
-      { name: 'evo_delete_diary_entry', description: 'Permanently delete a diary entry. Only call after the user explicitly confirms deletion.', inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] } },
       { name: 'evo_list_movie_reviews', description: 'List watched movies and personal ratings/reviews.', inputSchema: { type: 'object', properties: {} } },
       { name: 'evo_add_movie_review', description: 'Save a movie title, optional release year, 1–5 rating, review, and watch date.', inputSchema: { type: 'object', properties: { title: { type: 'string' }, year: { type: 'integer', minimum: 1888, maximum: 2100 }, rating: { type: 'integer', minimum: 1, maximum: 5 }, review: { type: 'string' }, watchedAt: { type: 'string', description: 'YYYY-MM-DD; defaults to today' } }, required: ['title', 'rating'] } },
       { name: 'evo_update_movie_review', description: 'Edit a saved movie review.', inputSchema: { type: 'object', properties: { id: { type: 'string' }, title: { type: 'string' }, year: { type: 'number' }, rating: { type: 'number' }, review: { type: 'string' }, watchedAt: { type: 'string' } }, required: ['id'] } },
@@ -661,21 +657,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
       case 'evo_get_progress_scores':
         return { content: [{ type: 'text', text: JSON.stringify(await fetchEvo<any>('/progress/scores'), null, 2) }] };
-      case 'evo_list_diary_entries':
-        return { content: [{ type: 'text', text: JSON.stringify(await fetchEvo<any>('/library/diary'), null, 2) }] };
-      case 'evo_add_diary_entry': {
-        const created = await fetchEvo<any>('/library/diary', { method: 'POST', body: JSON.stringify(args) });
-        return { content: [{ type: 'text', text: `Saved diary entry "${created.title}" (${created.date}).` }] };
-      }
-      case 'evo_update_diary_entry': {
-        const { id, ...body } = args;
-        const updated = await fetchEvo<any>(`/library/diary/${encodeURIComponent(String(id))}`, { method: 'PATCH', body: JSON.stringify(body) });
-        return { content: [{ type: 'text', text: `Updated diary entry "${updated.title}".` }] };
-      }
-      case 'evo_delete_diary_entry': {
-        await fetchEvo<void>(`/library/diary/${encodeURIComponent(String(args.id))}`, { method: 'DELETE' });
-        return { content: [{ type: 'text', text: `Deleted diary entry ${args.id}.` }] };
-      }
       case 'evo_list_movie_reviews':
         return { content: [{ type: 'text', text: JSON.stringify(await fetchEvo<any>('/library/movies'), null, 2) }] };
       case 'evo_add_movie_review': {

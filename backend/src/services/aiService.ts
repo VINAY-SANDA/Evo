@@ -30,7 +30,7 @@ CURRENT USER CONTEXT:
 ${context.memories.map(m => `  • ${m}`).join('\n')}
 
 OPERATING PRINCIPLES:
-1. Ground every recommendation in their active goals (Mastering Java/DSA, Vyralabs launch, Software Engineering role).
+1. Ground recommendations only in the current user data or goals they state; do not assume unstated goals or events.
 2. Proactively protect streaks and high-priority milestones.
 3. Suggest concrete action items with specific times and priority rankings.
 `.trim();

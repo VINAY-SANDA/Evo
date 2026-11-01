@@ -72,7 +72,6 @@ test('all registered MCP tools call the backend and return results', async () =>
       'evo_save_weekly_review', 'evo_get_progress_scores', 'evo_list_notifications',
       'evo_mark_notification_read', 'evo_mark_all_notifications_read',
       'evo_delete_notification',
-      'evo_list_diary_entries', 'evo_add_diary_entry', 'evo_update_diary_entry', 'evo_delete_diary_entry',
       'evo_list_movie_reviews', 'evo_add_movie_review', 'evo_update_movie_review', 'evo_delete_movie_review',
       'evo_record_goal_check_in', 'evo_list_goal_check_ins',
     ];
@@ -153,9 +152,6 @@ test('all registered MCP tools call the backend and return results', async () =>
       ['evo_mark_notification_read', { id: '11111111-1111-4111-8111-111111111111' }],
       ['evo_mark_all_notifications_read', {}],
       ['evo_delete_notification', { id: '11111111-1111-4111-8111-111111111111' }],
-      ['evo_list_diary_entries', {}], ['evo_add_diary_entry', { title: 'A day', body: 'Notes' }],
-      ['evo_update_diary_entry', { id: '11111111-1111-4111-8111-111111111111', title: 'Updated day' }],
-      ['evo_delete_diary_entry', { id: '11111111-1111-4111-8111-111111111111' }],
       ['evo_list_movie_reviews', {}], ['evo_add_movie_review', { title: 'Film', rating: 4, review: 'Good' }],
       ['evo_update_movie_review', { id: '11111111-1111-4111-8111-111111111111', rating: 5 }],
       ['evo_delete_movie_review', { id: '11111111-1111-4111-8111-111111111111' }],

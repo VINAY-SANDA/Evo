@@ -104,7 +104,6 @@ export default function ReviewsPage() {
       const weekEnd = end.toISOString().slice(0, 10);
       const weekTasks = tasks.filter(task => task.dueDate && task.dueDate >= weekStart && task.dueDate <= weekEnd);
       const completed = weekTasks.filter(task => task.status === 'completed').length;
-      const open = weekTasks.filter(task => task.status !== 'completed');
       const habitStreaks = habits.filter(habit => habit.active).sort((a, b) => b.currentStreak - a.currentStreak);
       const aiContext = {
         userName: 'Vinay',
@@ -116,7 +115,7 @@ export default function ReviewsPage() {
         memories: [],
       };
       const aiReply = await sendAiChatMessage(
-        `Create a concise weekly review for ${weekStart} through ${weekEnd}. Use only the task, active goal, and habit data provided. This week had ${completed} of ${weekTasks.length} due tasks completed and ${open.length} unfinished. Do not invent events or progress. Return only a valid JSON object with these exact fields: {"biggestAchievement":"...", "biggestProblem":"...", "nextWeekPriorities":["...","...","..."], "overallScore":0}. Priorities must be concrete and based on the provided data.`,
+        `Create a concise weekly review for ${weekStart} through ${weekEnd}. Use only workspace context provided by EVO. Do not invent events or progress. If no personal context is provided, say there is not enough information for a factual review. Return only a valid JSON object with these exact fields: {"biggestAchievement":"...", "biggestProblem":"...", "nextWeekPriorities":["...","...","..."], "overallScore":0}. Priorities must be concrete and based on the provided data.`,
         aiContext,
       );
       if (/^(EVO could not get an AI response|Gemini is not configured|Gemini is busy|Gemini API error|Gemini returned no text|Gemini took too long|Could not reach the Gemini API)/i.test(aiReply.content)) {

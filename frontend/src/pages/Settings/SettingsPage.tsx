@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import type { Memory } from '../../types';
-import { getUserProfile, updateUserProfile, getMemories, addMemory, updateMemory, deleteMemory } from '../../services/api';
+import { getUserProfile, updateUserProfile, getMemories, addMemory, updateMemory, deleteMemory, exportUserData } from '../../services/api';
 import './SettingsPage.css';
 
 export default function SettingsPage() {
   const [userName, setUserName] = useState('Vinay');
   const [userEmail, setUserEmail] = useState('vinay@example.com');
   const [aiTone, setAiTone] = useState<'rigorous' | 'balanced' | 'empathetic'>('rigorous');
+  const [aiContextEnabled, setAiContextEnabled] = useState(true);
   const [memories, setMemories] = useState<Memory[]>([]);
   const [newMemoryText, setNewMemoryText] = useState('');
   const [newMemoryType, setNewMemoryType] = useState<Memory['memoryType']>('preference');
@@ -17,6 +18,7 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [deletingMemoryId, setDeletingMemoryId] = useState<string | null>(null);
   const [editingMemoryId, setEditingMemoryId] = useState<string | null>(null);
+  const [exportingData, setExportingData] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -26,6 +28,7 @@ export default function SettingsPage() {
         setUserName(user.name);
         setUserEmail(user.email);
         if (user.aiTone) setAiTone(user.aiTone);
+        setAiContextEnabled(user.aiContextEnabled !== false);
       }
     });
     getMemories().then(mems => {
@@ -45,7 +48,7 @@ export default function SettingsPage() {
     e.preventDefault();
     setSaving(true);
     try {
-      const updated = await updateUserProfile({ name: userName.trim(), email: userEmail.trim(), aiTone });
+      const updated = await updateUserProfile({ name: userName.trim(), email: userEmail.trim(), aiTone, aiContextEnabled });
       if (!updated) throw new Error('Profile update failed');
       setSavedSuccess(true);
       showToast('Profile saved.');
@@ -64,7 +67,7 @@ export default function SettingsPage() {
       : await addMemory(newMemoryText.trim(), newMemoryType, 8);
     if (newMem) {
       setMemories(current => editingMemoryId ? current.map(memory => memory.id === editingMemoryId ? newMem : memory) : [newMem, ...current]);
-      showToast(editingMemoryId ? 'Memory updated.' : '✓ Memory encoded into vector store');
+      showToast(editingMemoryId ? 'Memory updated.' : 'Memory saved.');
     } else {
       showToast('Memory could not be saved. Check your connection and try again.');
       return;
@@ -93,6 +96,46 @@ export default function SettingsPage() {
       return;
     }
     showToast(`Coaching tone set to ${tone}.`);
+  };
+
+  const handleAiContextChange = async (enabled: boolean) => {
+    const previous = aiContextEnabled;
+    setAiContextEnabled(enabled);
+    const updated = await updateUserProfile({ aiContextEnabled: enabled });
+    if (!updated) {
+      setAiContextEnabled(previous);
+      showToast('AI context preference could not be saved. Please try again.');
+      return;
+    }
+    showToast(enabled ? 'Workspace context enabled for AI requests.' : 'Workspace context disabled for AI requests.');
+  };
+
+  const handleExportData = async () => {
+    setExportingData(true);
+    try {
+      const exportData = await exportUserData();
+      if (!exportData) { showToast('Your data export could not be prepared. Please try again.'); return; }
+      let browserData: Record<string, unknown> = {};
+      try {
+        browserData.aiChatHistory = JSON.parse(window.localStorage.getItem('evo_chat_history') || '[]');
+        browserData.activeFocusSession = JSON.parse(window.localStorage.getItem('evo.learning.focus-session') || 'null');
+        browserData.reminderAlertHistory = Object.fromEntries(Array.from({ length: window.localStorage.length }, (_, index) => window.localStorage.key(index))
+          .filter((key): key is string => Boolean(key?.startsWith('evo.reminders.notified.')))
+          .map(key => [key, window.localStorage.getItem(key)]));
+      } catch {
+        browserData = { note: 'Some browser-local records could not be read in this browser.' };
+      }
+      const blob = new Blob([JSON.stringify({ ...exportData, browserData }, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `evo-data-${new Date().toISOString().slice(0, 10)}.json`;
+      link.click();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      showToast('Your EVO data export has been downloaded.');
+    } catch {
+      showToast('Your data export could not be prepared. Please try again.');
+    } finally { setExportingData(false); }
   };
 
   return (
@@ -144,9 +187,26 @@ export default function SettingsPage() {
           </form>
         </div>
 
+        <div className="card settings-card animate-fade-in-up">
+          <h2 className="settings-section-title">Your data</h2>
+          <p className="settings-subtitle" style={{ marginBottom: 'var(--space-4)' }}>
+            Download a copy of your EVO records, including your private diary. The file is prepared only when you request it.
+          </p>
+          <button type="button" className="btn btn-secondary" onClick={() => void handleExportData()} disabled={exportingData}>
+            {exportingData ? 'Preparing export…' : 'Download my data'}
+          </button>
+        </div>
+
         {/* AI Personality & Logic Engine */}
         <div className="card settings-card animate-fade-in-up stagger-1">
           <h2 className="settings-section-title">✨ EVO AI Persona & Directive</h2>
+          <p className="settings-subtitle" style={{ marginBottom: 'var(--space-4)' }}>
+            Diary entries are never included. When workspace context is on, goals, today’s tasks, habits, this month’s finance totals, and saved memories may be sent to Gemini with your request. Turn it off to send only your message and coaching tone.
+          </p>
+          <label className="form-group" style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+            <input type="checkbox" checked={aiContextEnabled} onChange={event => { void handleAiContextChange(event.target.checked); }} />
+            <span className="form-label" style={{ margin: 0 }}>Include workspace context in AI requests</span>
+          </label>
           <div className="form-group">
             <label className="form-label">Coaching Tone</label>
             <div className="tone-selector">
@@ -184,8 +244,8 @@ export default function SettingsPage() {
         <div className="card settings-card span-2 animate-fade-in-up stagger-2">
           <div className="flex items-center justify-between" style={{ marginBottom: 'var(--space-4)' }}>
             <div>
-              <h2 className="settings-section-title">🧠 Long-Term Memory Store (pgvector)</h2>
-              <p className="settings-subtitle">Items the AI has learned about you and incorporates into every decision</p>
+              <h2 className="settings-section-title">🧠 Long-Term Memory Store</h2>
+              <p className="settings-subtitle">Saved preferences and facts that can be included in EVO AI coaching context. Diary entries are never included.</p>
             </div>
             <span className="badge badge-primary">{memories.length} Memories Stored</span>
           </div>

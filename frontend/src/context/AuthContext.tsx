@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import type { User } from '../types';
+import { getApiBaseUrl } from '../services/api';
 import {
   clearAuthSession,
   getAuthToken,
@@ -25,21 +26,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const [user, setUser] = useState<User | null>(() => getStoredUser());
 
-  const [isLoading] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState<boolean>(() => Boolean(getAuthToken()));
 
   useEffect(() => {
     const verifySession = async () => {
       const token = getAuthToken();
       if (!token) {
         setIsAuthenticated(false);
+        setIsLoading(false);
         return;
       }
 
-      const rawApiUrl = (import.meta.env.VITE_API_URL || '').trim();
-      const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-      const apiBase = rawApiUrl ? rawApiUrl.replace(/\/+$/, '') : isLocalhost ? 'http://localhost:5000' : '';
+      const apiBase = getApiBaseUrl();
 
-      if (!apiBase) return;
+      if (!apiBase) { setIsLoading(false); return; }
       const controller = new AbortController();
       const timeout = window.setTimeout(() => controller.abort(), 5000);
       try {
@@ -63,6 +63,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Keep the cached session available during network outages or backend wake-up.
       } finally {
         window.clearTimeout(timeout);
+        setIsLoading(false);
       }
     };
 
@@ -74,13 +75,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     email: string = 'vinay@example.com',
     rememberMe: boolean = true,
   ): Promise<{ success: boolean; error?: string }> => {
-    const rawApiUrl = (import.meta.env.VITE_API_URL || '').trim();
-    const isLocalhost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-    const apiBase = rawApiUrl
-      ? rawApiUrl.replace(/\/+$/, '')
-      : isLocalhost
-      ? 'http://localhost:5000'
-      : '';
+    const apiBase = getApiBaseUrl();
 
     if (!apiBase) {
       return { success: false, error: 'EVO could not reach its server. Check the app configuration and try again.' };

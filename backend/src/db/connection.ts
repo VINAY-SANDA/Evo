@@ -13,7 +13,7 @@ export const pool = new Pool({
   max: 20,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 3000,
-  ssl: isLocal ? false : { rejectUnauthorized: false },
+  ssl: isLocal ? false : { rejectUnauthorized: process.env.PGSSL_REJECT_UNAUTHORIZED !== 'false' },
 });
 
 pool.on('error', (err) => {
@@ -21,13 +21,15 @@ pool.on('error', (err) => {
 });
 
 export async function testConnection(): Promise<boolean> {
+  let client: pg.PoolClient | undefined;
   try {
-    const client = await pool.connect();
+    client = await pool.connect();
     await client.query('SELECT 1');
-    client.release();
     return true;
   } catch {
     return false;
+  } finally {
+    client?.release();
   }
 }
 

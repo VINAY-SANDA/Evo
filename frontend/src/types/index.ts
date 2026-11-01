@@ -8,6 +8,7 @@ export interface User {
   avatarUrl?: string;
   timezone?: string;
   aiTone?: 'rigorous' | 'balanced' | 'empathetic';
+  aiContextEnabled?: boolean;
   createdAt?: string;
 }
 

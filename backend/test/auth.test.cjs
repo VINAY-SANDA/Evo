@@ -136,8 +136,6 @@ test('MCP credentials are limited to tool-required API operations', () => {
     ['PATCH', '/api/projects/00000000-0000-0000-0000-000000000001'],
     ['DELETE', '/api/projects/00000000-0000-0000-0000-000000000001'],
     ['DELETE', '/api/projects/milestones/00000000-0000-0000-0000-000000000001'],
-    ['GET', '/api/library/diary'], ['POST', '/api/library/diary'],
-    ['DELETE', '/api/library/diary/00000000-0000-0000-0000-000000000001'],
     ['GET', '/api/library/movies'], ['POST', '/api/library/movies'],
     ['DELETE', '/api/library/movies/00000000-0000-0000-0000-000000000001'],
     ['PATCH', '/api/reminders/00000000-0000-0000-0000-000000000001'],
@@ -147,6 +145,14 @@ test('MCP credentials are limited to tool-required API operations', () => {
     ['GET', '/api/goals/00000000-0000-0000-0000-000000000001/check-ins'],
   ]) {
     assert.equal(invoke(authenticateApiRequest, { authorization, method, originalUrl }).nextCalled, true, `${method} ${originalUrl} should be available to scoped MCP token`);
+  }
+  for (const [method, originalUrl] of [
+    ['GET', '/api/library/diary'],
+    ['POST', '/api/library/diary'],
+    ['PATCH', '/api/library/diary/00000000-0000-0000-0000-000000000001'],
+    ['DELETE', '/api/library/diary/00000000-0000-0000-0000-000000000001'],
+  ]) {
+    assert.equal(invoke(authenticateApiRequest, { authorization, method, originalUrl }).nextCalled, false, `${method} ${originalUrl} must stay unavailable to MCP`);
   }
   assert.equal(invoke(authenticateApiRequest, { authorization, method: 'DELETE', originalUrl: '/api/notifications/00000000-0000-0000-0000-000000000001' }).nextCalled, true);
 });

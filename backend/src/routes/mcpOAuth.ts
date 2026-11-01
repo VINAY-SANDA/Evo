@@ -9,6 +9,10 @@ import {
 } from '../services/mcpOAuth.js';
 import { getOwnerPasscode } from '../services/ownerCredentials.js';
 
+const consentAttempts = new Map<string, { count: number; resetAt: number }>();
+const CONSENT_ATTEMPT_LIMIT = 8;
+const CONSENT_WINDOW_MS = 15 * 60 * 1000;
+
 function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, character => ({
     '&': '&amp;',
@@ -132,7 +136,22 @@ export function createEvoMcpOAuthRouter(
       if (req.body?.decision !== 'allow') {
         return res.status(400).send(consentPage(flow, clientName, 'Choose whether to allow the connection.'));
       }
-      return sendAuthorizationResponse(res, await provider.authorizeOwner(flow, req.body?.passcode));
+      const now = Date.now();
+      for (const [ip, attempt] of consentAttempts) {
+        if (attempt.resetAt <= now) consentAttempts.delete(ip);
+      }
+      const ip = req.ip || req.socket.remoteAddress || 'unknown';
+      const current = consentAttempts.get(ip);
+      if (current && current.count >= CONSENT_ATTEMPT_LIMIT && current.resetAt > now) {
+        res.setHeader('Retry-After', String(Math.ceil((current.resetAt - now) / 1000)));
+        return res.status(429).type('html').send(consentPage(flow, clientName, 'Too many passcode attempts. Please wait before trying again.'));
+      }
+      consentAttempts.set(ip, current && current.resetAt > now
+        ? { ...current, count: current.count + 1 }
+        : { count: 1, resetAt: now + CONSENT_WINDOW_MS });
+      const authorization = await provider.authorizeOwner(flow, req.body?.passcode);
+      consentAttempts.delete(ip);
+      return sendAuthorizationResponse(res, authorization);
     } catch (error) {
       if (error instanceof AccessDeniedError) {
         return res.status(401).type('html').send(consentPage(flow, clientName, 'That passcode was not accepted. Please try again.'));

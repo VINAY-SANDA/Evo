@@ -17,6 +17,7 @@ import reviewsRouter from './routes/reviews.js';
 import mcpRouter from './routes/mcp.js';
 import authRouter from './routes/auth.js';
 import personalLibraryRouter from './routes/personalLibrary.js';
+import userExportRouter from './routes/userExport.js';
 import { testConnection, query } from './db/connection.js';
 import { DEFAULT_USER_ID, ensureDefaultUser } from './db/userHelper.js';
 import { authenticateApiRequest, authenticateRequest } from './middleware/auth.js';
@@ -28,6 +29,8 @@ dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+let backendReady = process.env.NODE_ENV === 'test';
+let backendStartupMessage = 'EVO is preparing its database and required services.';
 
 // Render terminates TLS and forwards requests through one trusted proxy hop.
 // This lets rate limiters read the forwarded client IP without trusting headers locally.
@@ -37,31 +40,38 @@ if (process.env.RENDER === 'true') {
 
 // ── Middleware ──
 const allowedOrigins = process.env.CORS_ORIGIN
-  ? process.env.CORS_ORIGIN.split(',').map(s => s.trim())
+  ? process.env.CORS_ORIGIN.split(',').map(s => s.trim()).filter(Boolean)
   : ['http://localhost:5173'];
 
 app.use(cors({
   origin: (origin, callback) => {
     if (!origin) return callback(null, true);
     if (
-      allowedOrigins.includes(origin) ||
-      origin.endsWith('.vercel.app') ||
-      origin.endsWith('.google.com') ||
-      origin.endsWith('.googleusercontent.com')
+      allowedOrigins.includes(origin)
     ) {
       return callback(null, true);
     }
     return callback(null, false);
   },
-  credentials: true,
+  credentials: false,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'mcp-session-id', 'x-requested-with'],
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+app.use((_req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  next();
+});
 
 // ── Health Check ──
 app.get('/api/health', async (_req: Request, res: Response) => {
+  if (!backendReady) {
+    return res.status(503).json({ status: 'starting', message: backendStartupMessage, system: 'EVO Personal AI Operating System API' });
+  }
   try {
     await query('SELECT 1');
     res.json({
@@ -100,6 +110,7 @@ app.get('/api/health', async (_req: Request, res: Response) => {
 // ── Route Mounts ──
 app.use('/api/auth', authRouter);
 app.use('/api', authenticateApiRequest);
+app.use('/api/user/export', userExportRouter);
 app.use('/api/goals', goalsRouter);
 app.use('/api/tasks', tasksRouter);
 app.use('/api/habits', habitsRouter);
@@ -124,43 +135,63 @@ app.use('/sse', mcpRouter);
 app.post('/api/ai/chat', async (req: Request, res: Response) => {
   const { message, context } = req.body;
 
+  let allowAiContext = false;
+  let savedTone: AiContext['tone'] = 'rigorous';
+  try {
+    const preference = await query('SELECT ai_context_enabled, ai_tone FROM users WHERE id = $1', [DEFAULT_USER_ID]);
+    allowAiContext = preference.rows[0]?.ai_context_enabled === true;
+    savedTone = preference.rows[0]?.ai_tone || 'rigorous';
+  } catch (err) {
+    console.warn('Could not query EVO AI privacy preferences:', err);
+  }
+
   let activeGoals: any[] = [];
   let todayTasks: any[] = [];
   let userHabits: any[] = [];
   let storedMemories: string[] = [];
   let monthlySavings = { income: 0, expenses: 0, net: 0 };
-  try {
-    const [goalsRes, tasksRes, habitsRes, memsRes, finRes] = await Promise.all([
+  if (allowAiContext) {
+    try {
+      const [goalsRes, tasksRes, habitsRes, memsRes, finRes] = await Promise.all([
       query('SELECT title, progress, deadline FROM goals WHERE user_id = $1 AND status = $2 LIMIT 5', [DEFAULT_USER_ID, 'active']),
       query('SELECT title, status, priority FROM tasks WHERE user_id = $1 AND due_date = CURRENT_DATE LIMIT 5', [DEFAULT_USER_ID]),
       query('SELECT name, current_streak FROM habits WHERE user_id = $1 AND active = true LIMIT 5', [DEFAULT_USER_ID]),
       query('SELECT text FROM memories WHERE user_id = $1 ORDER BY importance DESC LIMIT 5', [DEFAULT_USER_ID]),
       query(
         `SELECT
-           COALESCE((SELECT SUM(amount) FROM incomes WHERE user_id = $1), 0) as income,
-           COALESCE((SELECT SUM(amount) FROM expenses WHERE user_id = $1), 0) as expense`,
+           COALESCE((SELECT SUM(amount) FROM incomes WHERE user_id = $1 AND date >= date_trunc('month', CURRENT_DATE) AND date < date_trunc('month', CURRENT_DATE) + INTERVAL '1 month'), 0) as income,
+           COALESCE((SELECT SUM(amount) FROM expenses WHERE user_id = $1 AND date >= date_trunc('month', CURRENT_DATE) AND date < date_trunc('month', CURRENT_DATE) + INTERVAL '1 month'), 0) as expense`,
         [DEFAULT_USER_ID]
       ),
-    ]);
-    activeGoals = goalsRes.rows.map((g: any) => ({ title: g.title, progress: Number(g.progress) || 0, deadline: g.deadline }));
-    todayTasks = tasksRes.rows.map((t: any) => ({ title: t.title, status: t.status, priority: t.priority }));
-    userHabits = habitsRes.rows.map((h: any) => ({ name: h.name, currentStreak: Number(h.current_streak) || 0, completedToday: false }));
-    storedMemories = memsRes.rows.map((m: any) => m.text);
-    const inc = Number(finRes.rows[0]?.income) || 0;
-    const exp = Number(finRes.rows[0]?.expense) || 0;
-    monthlySavings = { income: inc, expenses: exp, net: inc - exp };
-  } catch (err) {
-    console.warn('Could not query DB for AI chat context:', err);
+      ]);
+      activeGoals = goalsRes.rows.map((g: any) => ({ title: g.title, progress: Number(g.progress) || 0, deadline: g.deadline }));
+      todayTasks = tasksRes.rows.map((t: any) => ({ title: t.title, status: t.status, priority: t.priority }));
+      userHabits = habitsRes.rows.map((h: any) => ({ name: h.name, currentStreak: Number(h.current_streak) || 0, completedToday: false }));
+      storedMemories = memsRes.rows.map((m: any) => m.text);
+      const inc = Number(finRes.rows[0]?.income) || 0;
+      const exp = Number(finRes.rows[0]?.expense) || 0;
+      monthlySavings = { income: inc, expenses: exp, net: inc - exp };
+    } catch (err) {
+      console.warn('Could not query opted-in EVO AI context:', err);
+    }
   }
 
-  const liveContext: AiContext = context || {
+  const liveContext: AiContext = allowAiContext ? context || {
     userName: 'Vinay',
-    tone: 'rigorous',
+    tone: savedTone,
     activeGoals,
     todayTasks,
     habits: userHabits,
     monthlySavings,
     memories: storedMemories,
+  } : {
+    userName: 'the user',
+    tone: savedTone,
+    activeGoals: [],
+    todayTasks: [],
+    habits: [],
+    monthlySavings: { income: 0, expenses: 0, net: 0 },
+    memories: [],
   };
 
   const response = await getAiResponse(message || '', liveContext);
@@ -253,7 +284,7 @@ app.delete('/api/memories/:id', async (req: Request, res: Response) => {
 app.get('/api/user/profile', async (_req: Request, res: Response) => {
   try {
     const result = await query(
-      'SELECT id, name, email, timezone, ai_tone FROM users WHERE id = $1',
+      'SELECT id, name, email, timezone, ai_tone, ai_context_enabled FROM users WHERE id = $1',
       [DEFAULT_USER_ID]
     );
     if (result.rows.length === 0) {
@@ -263,6 +294,7 @@ app.get('/api/user/profile', async (_req: Request, res: Response) => {
         email: 'vinay@example.com',
         timezone: 'Asia/Kolkata',
         aiTone: 'rigorous',
+        aiContextEnabled: true,
       });
     }
     const u = result.rows[0];
@@ -272,6 +304,7 @@ app.get('/api/user/profile', async (_req: Request, res: Response) => {
       email: u.email,
       timezone: u.timezone || 'Asia/Kolkata',
       aiTone: u.ai_tone || 'rigorous',
+      aiContextEnabled: u.ai_context_enabled !== false,
     });
   } catch (error) {
     console.error('Error fetching user profile:', error);
@@ -281,17 +314,18 @@ app.get('/api/user/profile', async (_req: Request, res: Response) => {
 
 app.patch('/api/user/profile', async (req: Request, res: Response) => {
   try {
-    const { name, email, timezone, aiTone } = req.body;
+    const { name, email, timezone, aiTone, aiContextEnabled } = req.body;
     const result = await query(
       `UPDATE users
        SET name = COALESCE($1, name),
            email = COALESCE($2, email),
            timezone = COALESCE($3, timezone),
            ai_tone = COALESCE($4, ai_tone),
+           ai_context_enabled = COALESCE($5, ai_context_enabled),
            updated_at = CURRENT_TIMESTAMP
-       WHERE id = $5
-       RETURNING id, name, email, timezone, ai_tone`,
-      [name || null, email || null, timezone || null, aiTone || null, DEFAULT_USER_ID]
+       WHERE id = $6
+       RETURNING id, name, email, timezone, ai_tone, ai_context_enabled`,
+      [name || null, email || null, timezone || null, aiTone || null, typeof aiContextEnabled === 'boolean' ? aiContextEnabled : null, DEFAULT_USER_ID]
     );
     const u = result.rows[0];
     res.json({
@@ -300,6 +334,7 @@ app.patch('/api/user/profile', async (req: Request, res: Response) => {
       email: u.email,
       timezone: u.timezone,
       aiTone: u.ai_tone,
+      aiContextEnabled: u.ai_context_enabled !== false,
     });
   } catch (error) {
     console.error('Error updating user profile:', error);
@@ -405,25 +440,39 @@ export { app };
 
 // Keep imports side-effect free so the complete HTTP app can be exercised by tests.
 if (process.env.NODE_ENV !== 'test') {
-  app.listen(PORT, async () => {
+  app.listen(PORT, () => {
     console.log(`🚀 EVO Backend Server online at http://localhost:${PORT}`);
-    console.log(`📋 API docs available at http://localhost:${PORT}/api/health`);
-    const isDbConnected = await testConnection();
-    if (isDbConnected) {
-      console.log(`🐘 PostgreSQL: Connected & active`);
-      await ensureDefaultUser();
-      try {
-        await ensureFeatureTables();
-      } catch (error) {
-        console.warn('⚠️ EVO feature tables could not be initialized:', error instanceof Error ? error.message : error);
-      }
-      try {
-        await ensureMcpOAuthTables();
-      } catch (error) {
-        console.warn('⚠️ MCP OAuth storage could not be initialized:', error instanceof Error ? error.message : error);
-      }
-    } else {
-      console.log(`💡 PostgreSQL: Not detected (running with in-memory persistence)`);
-    }
+    console.log(`📋 Readiness endpoint available at http://localhost:${PORT}/api/health`);
+    void initializeBackend();
   });
+}
+
+async function initializeBackend(): Promise<void> {
+  try {
+    const isProduction = process.env.NODE_ENV === 'production' || process.env.RENDER === 'true';
+    if (!process.env.EVO_AUTH_SECRET || (isProduction && !process.env.EVO_MASTER_PASSCODE)) {
+      backendStartupMessage = 'EVO authentication is not configured on the server.';
+      console.error(backendStartupMessage);
+      return;
+    }
+    if (isProduction) {
+      if (!process.env.CORS_ORIGIN?.split(',').some(origin => origin.trim())) {
+        backendStartupMessage = 'The deployment must configure CORS_ORIGIN with the exact web app address.';
+        console.error(backendStartupMessage);
+        return;
+      }
+    }
+    if (!await testConnection()) throw new Error('Database connection is unavailable.');
+    await ensureDefaultUser();
+    await ensureFeatureTables();
+    await ensureMcpOAuthTables();
+    backendReady = true;
+    backendStartupMessage = 'EVO is ready.';
+    console.log('✅ EVO backend is ready; database and required migrations are available.');
+  } catch (error) {
+    backendReady = false;
+    backendStartupMessage = 'EVO is waiting for the database and schema setup to finish.';
+    console.error('EVO startup is not ready:', error instanceof Error ? error.message : error);
+    setTimeout(() => { void initializeBackend(); }, 5000).unref();
+  }
 }

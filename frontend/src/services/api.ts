@@ -33,28 +33,38 @@ const API_BASE_URL = rawApiUrl
   : isLocalhost
     ? 'http://localhost:5000'
     : '';
-let lastApiFailureMessage: string | null = null;
+const apiFailures = new Map<string, string>();
 
-export function getLastApiFailureMessage() { return lastApiFailureMessage; }
+export function getApiBaseUrl() { return API_BASE_URL; }
+export function getApiFailures() { return Array.from(apiFailures, ([endpoint, message]) => ({ endpoint, message })); }
 
-export async function checkApiHealth(): Promise<boolean> {
-  if (!API_BASE_URL) return false;
+export async function checkApiHealth(): Promise<{ ready: boolean; message?: string }> {
+  if (!API_BASE_URL) return { ready: false, message: 'The server address is not configured.' };
+  const controller = new AbortController();
+  const timeout = typeof window !== 'undefined' ? window.setTimeout(() => controller.abort(), 5000) : undefined;
   try {
-    const response = await fetch(`${API_BASE_URL}/api/health`, { method: 'GET', cache: 'no-store' });
-    if (!response.ok) return false;
-    const health = await response.json() as { status?: string };
-    return health.status === 'online';
+    const response = await fetch(`${API_BASE_URL}/api/health`, { method: 'GET', cache: 'no-store', signal: controller.signal });
+    const health = await response.json() as { status?: string; message?: string };
+    return { ready: response.ok && health.status === 'online', message: health.message };
   } catch {
-    return false;
+    return { ready: false, message: 'EVO cannot reach its server yet.' };
+  } finally {
+    if (timeout !== undefined && typeof window !== 'undefined') window.clearTimeout(timeout);
   }
 }
 
 function reportApiFailure(endpoint: string, status?: number) {
   if (typeof window === 'undefined') return;
-  lastApiFailureMessage = status ? `A request to ${endpoint} failed (${status}).` : `Could not reach the server for ${endpoint}.`;
+  const message = status ? `A request to ${endpoint} failed (${status}).` : `Could not reach the server for ${endpoint}.`;
+  apiFailures.set(endpoint, message);
   window.dispatchEvent(new CustomEvent('evo-api-error', {
-    detail: { message: lastApiFailureMessage },
+    detail: { endpoint, message },
   }));
+}
+
+function clearApiFailure(endpoint: string) {
+  if (!apiFailures.delete(endpoint) || typeof window === 'undefined') return;
+  window.dispatchEvent(new CustomEvent('evo-api-success', { detail: { endpoint } }));
 }
 
 async function apiRequest<T>(endpoint: string, options: RequestInit = {}, timeoutMs = 12000): Promise<T | null> {
@@ -93,7 +103,9 @@ async function apiRequest<T>(endpoint: string, options: RequestInit = {}, timeou
       console.error(`[EVO API Error ${res.status}] ${url}:`, errText);
       return null;
     }
-    return (await res.json()) as T;
+    const data = await res.json() as T;
+    clearApiFailure(endpoint);
+    return data;
   } catch (err) {
     if (timeoutController?.signal.aborted) {
       reportApiFailure(endpoint);
@@ -110,7 +122,7 @@ async function apiRequest<T>(endpoint: string, options: RequestInit = {}, timeou
 }
 
 async function apiDelete(endpoint: string): Promise<boolean> {
-  if (!API_BASE_URL) return false;
+  if (!API_BASE_URL) { reportApiFailure(endpoint); return false; }
   const token = typeof window !== 'undefined' ? getAuthToken() : null;
   const controller = new AbortController();
   const timeout = typeof window !== 'undefined' ? window.setTimeout(() => controller.abort(), 12000) : undefined;
@@ -120,8 +132,14 @@ async function apiDelete(endpoint: string): Promise<boolean> {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
       signal: controller.signal,
     });
-    return response.ok;
+    if (!response.ok) {
+      reportApiFailure(endpoint, response.status);
+      return false;
+    }
+    clearApiFailure(endpoint);
+    return true;
   } catch (error) {
+    reportApiFailure(endpoint);
     console.error(`[EVO Network/CORS Error] Failed to delete ${endpoint}:`, error);
     return false;
   } finally {
@@ -162,7 +180,7 @@ export async function getDashboardData() {
       timezone: 'Asia/Kolkata',
       aiTone: 'rigorous' as const,
     },
-    overallScore: 75,
+    overallScore: 0,
     weeklyChange: 0,
     todayStats: {
       tasksCompleted: 0,
@@ -172,7 +190,7 @@ export async function getDashboardData() {
       todaySpend: 0,
     },
     topStreaks: [],
-    aiInsight: 'Welcome to EVO. Connect your tasks and habits to track live productivity.',
+    aiInsight: '',
   };
 }
 
@@ -696,7 +714,12 @@ export async function getUserProfile(): Promise<User> {
     email: 'vinay@example.com',
     timezone: 'Asia/Kolkata',
     aiTone: 'rigorous',
+    aiContextEnabled: true,
   };
+}
+
+export async function exportUserData(): Promise<{ format: string; exportedAt: string; data: Record<string, unknown[]> } | null> {
+  return apiRequest<{ format: string; exportedAt: string; data: Record<string, unknown[]> }>('/api/user/export');
 }
 
 export async function updateUserProfile(profile: Partial<User>): Promise<User | null> {

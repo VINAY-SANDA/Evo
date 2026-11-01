@@ -10,6 +10,6 @@ export async function ensureDefaultUser() {
       ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name
     `, [DEFAULT_USER_ID]);
   } catch (err: any) {
-    console.warn('Could not ensure default user:', err.message);
+    throw new Error(`Could not ensure default user: ${err.message}`);
   }
 }

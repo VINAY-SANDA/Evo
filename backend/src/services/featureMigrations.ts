@@ -3,6 +3,7 @@ import { query } from '../db/connection.js';
 /** Apply additive feature migrations so existing hosted databases need no manual reset. */
 export async function ensureFeatureTables(): Promise<void> {
   await query(`
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS ai_context_enabled BOOLEAN NOT NULL DEFAULT TRUE;
     ALTER TABLE tasks ADD COLUMN IF NOT EXISTS recurrence_frequency VARCHAR(16);
     ALTER TABLE tasks ADD COLUMN IF NOT EXISTS recurrence_series_id UUID;
     ALTER TABLE habits ADD COLUMN IF NOT EXISTS schedule_days INT[];
