@@ -478,6 +478,7 @@ async function initializeBackend(): Promise<void> {
     backendReady = false;
     backendStartupMessage = 'EVO is waiting for the database and schema setup to finish.';
     console.error('EVO startup is not ready:', error instanceof Error ? error.message : error);
-    setTimeout(() => { void initializeBackend(); }, 5000).unref();
+    const timer = setTimeout(() => { void initializeBackend(); }, 5000);
+    if (typeof timer === 'object' && 'unref' in timer) timer.unref();
   }
 }
