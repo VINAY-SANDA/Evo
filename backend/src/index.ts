@@ -448,14 +448,19 @@ if (process.env.NODE_ENV !== 'test') {
 }
 
 async function initializeBackend(): Promise<void> {
+  const isProduction = process.env.NODE_ENV === 'production' || process.env.RENDER === 'true';
   try {
-    const isProduction = process.env.NODE_ENV === 'production' || process.env.RENDER === 'true';
     if (!process.env.EVO_AUTH_SECRET || (isProduction && !process.env.EVO_MASTER_PASSCODE)) {
       backendStartupMessage = 'EVO authentication is not configured on the server.';
       console.error(backendStartupMessage);
       return;
     }
     if (isProduction) {
+      if (!process.env.DATABASE_URL?.trim()) {
+        backendStartupMessage = 'DATABASE_URL is missing. Add the Render Postgres connection URL to the backend service.';
+        console.error(backendStartupMessage);
+        return;
+      }
       if (!process.env.CORS_ORIGIN?.split(',').some(origin => origin.trim())) {
         backendStartupMessage = 'The deployment must configure CORS_ORIGIN with the exact web app address.';
         console.error(backendStartupMessage);

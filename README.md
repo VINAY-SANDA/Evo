@@ -52,7 +52,7 @@ Set these environment variables for the backend before signing in:
 - `EVO_MCP_PUBLIC_URL`: the full public MCP URL, ending in `/mcp` (for example `https://your-backend.example.com/mcp`). Render deployments can use the service's `RENDER_EXTERNAL_URL` automatically.
 - `EVO_MCP_TOKEN`: a separate secret used by the local stdio MCP bridge when it calls the backend API.
 - `CORS_ORIGIN`: exact comma-separated frontend origins; local development defaults to `http://localhost:5173`. Production must list the deployed web app origin(s).
-- `PGSSL_REJECT_UNAUTHORIZED`: defaults to `true` for remote PostgreSQL connections. Set it to `false` only if your database provider requires an untrusted certificate.
+- `PGSSL_REJECT_UNAUTHORIZED`: TLS is enabled for remote PostgreSQL connections. Certificate verification is off by default for compatibility with Render's self-signed internal Postgres certificates; set this to `true` when using a database endpoint with a trusted certificate.
 
 The frontend also needs `VITE_API_URL` set to the backend origin when it is hosted separately. The remote Streamable HTTP MCP endpoint publishes OAuth discovery, dynamic client registration, and an authorization-code flow with PKCE. Gemini users approve access by entering the same EVO owner passcode used by the web app. Gemini must reach the MCP endpoint over public HTTPS; `localhost` works only for local clients running on the same machine. The stdio MCP bridge continues to use `EVO_MCP_TOKEN` for backend requests. Local login uses `Vinay@2026` unless `EVO_MASTER_PASSCODE` overrides it; production requires an explicitly configured passcode and `EVO_AUTH_SECRET`. Offline frontend login remains disabled.
 
