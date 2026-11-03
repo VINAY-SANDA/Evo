@@ -8,9 +8,35 @@ import { getApiFailures } from '../../services/api';
 
 export default function AppLayout() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [apiFailures, setApiFailures] = useState(() => getApiFailures());
   const [pendingReads, setPendingReads] = useState(0);
   const location = useLocation();
+
+  useLayoutEffect(() => {
+    setMobileNavOpen(false);
+  }, [location.pathname]);
+
+  useLayoutEffect(() => {
+    if (!mobileNavOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMobileNavOpen(false);
+    };
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.body.style.overflow = '';
+      window.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [mobileNavOpen]);
+
+  const toggleNavigation = () => {
+    if (window.matchMedia('(max-width: 768px)').matches) {
+      setMobileNavOpen(open => !open);
+      return;
+    }
+    setSidebarCollapsed(collapsed => !collapsed);
+  };
 
   useLayoutEffect(() => {
     const handleApiError = (event: Event) => {
@@ -42,10 +68,13 @@ export default function AppLayout() {
     <div className="app-layout">
       <Sidebar
         collapsed={sidebarCollapsed}
-        onToggle={() => setSidebarCollapsed(c => !c)}
+        mobileOpen={mobileNavOpen}
+        onToggle={toggleNavigation}
+        onNavigate={() => setMobileNavOpen(false)}
       />
+      {mobileNavOpen && <button className="sidebar-backdrop" aria-label="Close navigation" onClick={() => setMobileNavOpen(false)} />}
       <main className={`app-main ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
-        <Header onToggleSidebar={() => setSidebarCollapsed(c => !c)} />
+        <Header onToggleSidebar={toggleNavigation} mobileNavOpen={mobileNavOpen} />
         <div className="app-content">
           {apiFailures.length === 0 && pendingReads > 0 && <div className="card api-error-banner api-loading-banner" role="status" aria-live="polite"><span>Loading your saved information…</span></div>}
           {apiFailures.length > 0 && <section className="card api-error-banner" role="status" aria-live="polite">

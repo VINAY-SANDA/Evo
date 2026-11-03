@@ -5,6 +5,7 @@ import { getNotifications } from '../../services/api';
 
 interface HeaderProps {
   onToggleSidebar: () => void;
+  mobileNavOpen: boolean;
 }
 
 function getGreeting(): string {
@@ -35,7 +36,7 @@ function getPageTitle(pathname: string): string {
   return titles[pathname] || '';
 }
 
-export default function Header({ onToggleSidebar }: HeaderProps) {
+export default function Header({ onToggleSidebar, mobileNavOpen }: HeaderProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const { logout } = useAuth();
@@ -51,8 +52,8 @@ export default function Header({ onToggleSidebar }: HeaderProps) {
   return (
     <header className="app-header">
       <div className="header-left">
-        <button className="header-toggle" onClick={onToggleSidebar} aria-label="Toggle sidebar">
-          ☰
+        <button className="header-toggle" onClick={onToggleSidebar} aria-label={mobileNavOpen ? 'Close navigation' : 'Open navigation'} aria-expanded={mobileNavOpen} aria-controls="app-navigation">
+          {mobileNavOpen ? '×' : '☰'}
         </button>
         <div className="header-greeting">
           {pageTitle ? (

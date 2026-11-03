@@ -5,7 +5,9 @@ import { getUserProfile, getNotifications } from '../../services/api';
 
 interface SidebarProps {
   collapsed: boolean;
+  mobileOpen: boolean;
   onToggle: () => void;
+  onNavigate: () => void;
 }
 
 const mainNav = [
@@ -27,7 +29,7 @@ const secondaryNav = [
   { path: '/movies', icon: '▣', label: 'Movies' },
 ];
 
-export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
+export default function Sidebar({ collapsed, mobileOpen, onToggle, onNavigate }: SidebarProps) {
   const location = useLocation();
   const [user, setUser] = useState<User>({
     id: '00000000-0000-0000-0000-000000000001',
@@ -51,7 +53,7 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
   ];
 
   return (
-    <aside className={`sidebar ${collapsed ? 'collapsed' : ''}`}>
+    <aside id="app-navigation" className={`sidebar ${collapsed ? 'collapsed' : ''} ${mobileOpen ? 'open' : ''}`}>
       <div className="sidebar-logo" onClick={onToggle} style={{ cursor: 'pointer' }} aria-label="Toggle navigation">
         <img className="sidebar-logo-icon" src="/brand/evo-mark.png" alt="" />
         <span className="sidebar-logo-text">EVO</span>
@@ -68,6 +70,7 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
                 `sidebar-link ${isActive && location.pathname === item.path ? 'active' : ''}`
               }
               end={item.path === '/'}
+              onClick={onNavigate}
             >
               <span className="sidebar-link-icon">{item.icon}</span>
               <span className="sidebar-link-text">{item.label}</span>
@@ -82,6 +85,7 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
               key={item.path}
               to={item.path}
               className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}
+              onClick={onNavigate}
             >
               <span className="sidebar-link-icon">{item.icon}</span>
               <span className="sidebar-link-text">{item.label}</span>
@@ -97,6 +101,7 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
               key={item.path}
               to={item.path}
               className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}
+              onClick={onNavigate}
             >
               <span className="sidebar-link-icon">{item.icon}</span>
               <span className="sidebar-link-text">{item.label}</span>
